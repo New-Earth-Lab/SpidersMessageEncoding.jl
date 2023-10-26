@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<types>
+    <composite name="messageHeader" description="Message identifiers and length of message root.">
+        <type name="blockLength" primitiveType="uint16" />
+        <type name="templateId" primitiveType="uint16" />
+        <type name="schemaId" primitiveType="uint16" />
+        <type name="version" primitiveType="uint16" />
+    </composite>
+    <composite name="groupSizeEncoding" description="Repeating group dimensions.">
+        <type name="blockLength" primitiveType="uint16" />
+        <type name="numInGroup" primitiveType="uint16" />
+    </composite>
+    <composite name="varStringEncoding" description="Variable length UTF-8 String.">
+        <type name="length" primitiveType="uint32" maxValue="1073741824" />
+        <type name="varData" primitiveType="uint8" length="0" characterEncoding="UTF-8" />
+    </composite>
+    <composite name="varAsciiEncoding" description="Variable length ASCII String.">
+        <type name="length" primitiveType="uint32" maxValue="1073741824" />
+        <type name="varData" primitiveType="uint8" length="0" characterEncoding="ASCII" />
+    </composite>
+    <composite name="varDataEncoding" description="Variable length binary blob.">
+        <type name="length" primitiveType="uint32" maxValue="1073741824" />
+        <type name="varData" primitiveType="uint8" length="0" />
+    </composite>
+    <type name="TimestampNs" description="Timestamp in ns from UNIX epoch"
+        primitiveType="uint64" minValue="0" />
+    <type name="CorrelationId" description="Unique number"
+        primitiveType="int64" />
+    <type name="Description" description="Fixed string description" primitiveType="char" length="16" />
+    <type name="HeaderHash" description="Hashed value of static header members"
+        primitiveType="uint32" />
+    <type name="Dim" description="Non-zero unsigned" primitiveType="uint32"
+        minValue="1" />
+</types>

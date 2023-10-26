@@ -1,7 +1,12 @@
-module SpidersMessageSerDes
+module SpidersMessageEncoding
 
 using SimpleBinaryEncoding
-evalschema(SpidersMessageSerDes, "./sbe-schemas/image.xml")
-evalschema(SpidersMessageSerDes, "./sbe-schemas/dmcommand.xml")
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/image.xml"))
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/dmcommand.xml"))
+
+const MessageHeader = messageHeader
+export MessageHeader
+export Image
+export DmCommand
 
 end;
