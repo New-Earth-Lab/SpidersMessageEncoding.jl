@@ -61,7 +61,7 @@ Aeron.subscribe(aeron_conf) do aeronsub
     # dynamically
     first_frame = first(aeronsub)
     first_img = Image(first_frame.buffer)
-    pixmat = framearray(first_img)
+    pixmat = framedata(first_img)
     ElType = eltype(pixmat)
     # Process the first image using this dynamically
     # determined type. Continue after the function barrier.
@@ -78,7 +78,7 @@ function letsgo(aeronsub, ElType)
     for frame in subscription
         img = Image(first_frame.buffer)
         # Note the extra first argument! 
-        pixmat = framearray(ElType, img) 
+        pixmat = framedata(ElType, img) 
         # use pixmat here:
         process_image(pixmat)
     end
@@ -90,14 +90,14 @@ function process_image(img)
 end
 ```
 """
-function framearray(img::Image)
+function framedata(img::Image)
     # Not type-stable. It's conceivable
     # that it could constant propagate in future
     # versions of Julia.
     ElType = eltype(img)
-    return framearray(ElType, img)
+    return framedata(ElType, img)
 end
-function framearray(Eltype, img::Image)
+function framedata(Eltype, img::Image)
     reint = reinterpret(
         Eltype,
         img.frameBuffer
@@ -109,7 +109,17 @@ function framearray(Eltype, img::Image)
     )
     return reshp
 end
-export framearray
+
+function framedata!(img::Image, pixmat::Matrix{ElType}) where ElType
+    img.format = pixel_format_from_dtype(ElType)
+    resize!(img.frameBuffer, size(pixmat,1)* size(pixmat,2)*sizeof(ElType))
+    img.width = size(pixmat,1)
+    img.height = size(pixmat,2)
+    framedata(ElType, img) .= pixmat
+    return framedata(ElType, img)
+end
+
+export framedata, framedata!
 
 # Piracy: this isn't actually type piracy since we own
 # these types, even though they were defined for us by SimpleBinaryEncoding/
@@ -120,17 +130,9 @@ and formatting it as an `Image` with width, height, format, and data type
 taken from the 2D array, then copying the data.
 """
 function Image(buffer::AbstractVector{UInt8}, pixmat::Matrix)
-    ElType = eltype(pixmat)
-
     img = Image(buffer)
-    img.format = pixel_format_from_dtype(ElType)
-    resize!(img.frameBuffer, size(pixmat,1)* size(pixmat,2)*sizeof(ElType))
-    img.width = size(pixmat,1)
-    img.height = size(pixmat,2)
-    framearray(ElType, img) .= pixmat
-
+    framedata!(img, pixmat)
     return img
-
 end
 
 end;
