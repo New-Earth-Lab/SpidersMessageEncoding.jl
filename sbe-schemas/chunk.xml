@@ -8,7 +8,7 @@
     description="Schema for chunked messages"
     byteOrder="littleEndian">
     <xi:include href="common-types.xml" />
-    <sbe:message name="ChunkHeader"
+    <sbe:message name="ChunkHeaderMessage"
         id="1"
         description="Chunk header message format">
         <field name="channelRcvTimestampNs"
@@ -37,7 +37,7 @@
             type="varAsciiEncoding" />
 
     </sbe:message>
-    <sbe:message name="ChunkData"
+    <sbe:message name="ChunkDataMessage"
         id="2"
         description="Chunk data message format">
         <field name="channelRcvTimestampNs"

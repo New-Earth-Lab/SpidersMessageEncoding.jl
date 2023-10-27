@@ -31,7 +31,7 @@
             <validValue name="OneBased" description="One-based Indexing">1</validValue>
         </enum>
     </types>
-    <sbe:message name="Tensor"
+    <sbe:message name="TensorMessage"
         id="1"
         description="Tensor message format">
         <field name="channelRcvTimestampNs"
@@ -85,7 +85,7 @@
             description="Byte buffer containing value data"
             type="varDataEncoding" />
     </sbe:message>
-    <sbe:message name="SparseMatrixCSX"
+    <sbe:message name="SparseMatrixCSXMessage"
         id="2"
         description="Compressed sparse row/column matrix format message">
         <field name="channelRcvTimestampNs"
@@ -150,7 +150,7 @@
             description="Byte buffer containing value data"
             type="varDataEncoding" />
     </sbe:message>
-    <sbe:message name="SparseVector"
+    <sbe:message name="SparseVectorMessage"
         id="3"
         description="Sparse vector format message">
         <field name="channelRcvTimestampNs"

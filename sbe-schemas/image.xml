@@ -8,7 +8,7 @@
     description="Schema for image formats"
     byteOrder="littleEndian">
     <xi:include href="common-types.xml" />
-    <sbe:message name="Image"
+    <sbe:message name="ImageMessage"
         id="1"
         description="Image message format">
         <field name="channelRcvTimestampNs"
