@@ -26,7 +26,6 @@ end
 # Type-stable and should const-propagate
 function pixel_format_from_dtype(DType::Type)
     for p in pixformat_pairs
-        @show p[2] DType
         if p[2] == DType
             return p[1]
         end
