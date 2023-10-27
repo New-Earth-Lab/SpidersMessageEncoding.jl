@@ -111,6 +111,9 @@ function framearray(Eltype, img::Image)
 end
 export framearray
 
+# Piracy: this isn't actually type piracy since we own
+# these types, even though they were defined for us by SimpleBinaryEncoding/
+
 """
 Convenience constructor for creating taking a 2D array and byte buffer,
 and formatting it as an `Image` with width, height, format, and data type
