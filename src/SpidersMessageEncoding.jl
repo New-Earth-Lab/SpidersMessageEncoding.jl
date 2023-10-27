@@ -116,7 +116,7 @@ Convenience constructor for creating taking a 2D array and byte buffer,
 and formatting it as an `Image` with width, height, format, and data type
 taken from the 2D array, then copying the data.
 """
-function Image(buffer::Vector{UInt8}, pixmat::Matrix)
+function Image(buffer::AbstractVector{UInt8}, pixmat::Matrix)
     ElType = eltype(pixmat)
 
     img = Image(buffer)
