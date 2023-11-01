@@ -10,9 +10,17 @@ export MessageHeader, ImageMessage, DmCommandMessage
 # Define some higher level functions to make working
 # with these types a little more convenient
 
-# TODO: complete this list and make const.
-#= const =# pixformat_pairs = (
-    0 => Int16,
+const pixformat_pairs = (
+    # From GenI cam spec:
+    0x01080116 => UInt8,
+    0x01080117 => Int8,
+    0x01100118 => UInt16,
+    0x01100119 => Int16,
+    0x0120011A => UInt32,
+    0x0120011B => Int32,
+    0x0120011C => Float32,
+    0x0140011D => UInt64,
+    0x0140011E => Int64,
 )
 # Not type-stable (return is union of all possible pixel types)
 function pixel_dtype_from_format(format::Integer) 
