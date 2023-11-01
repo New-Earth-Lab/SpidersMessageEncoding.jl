@@ -21,6 +21,7 @@ const pixformat_pairs = (
     0x0120011C => Float32,
     0x0140011D => UInt64,
     0x0140011E => Int64,
+    0x0140011F => Float64
 )
 # Not type-stable (return is union of all possible pixel types)
 function pixel_dtype_from_format(format::Integer) 
