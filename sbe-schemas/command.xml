@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
+    xmlns:xi="http://www.w3.org/2001/XInclude"
+    package="tensor"
+    id="1"
+    version="0"
+    semanticVersion="5.2"
+    description="Schema for tensor messages"
+    byteOrder="littleEndian">
+    <xi:include href="common-types.xml" />
+    <sbe:message name="CommandMessage"
+        id="1"
+        description="A command">
+        <field name="channelRcvTimestampNs"
+            id="1"
+            description="Timestamp of received message (optionally inserted by UDP transport)"
+            type="TimestampNs" />
+        <field name="channelSndTimestampNs"
+            id="2"
+            description="Timestamp of message sent (optionally inserted by UDP transport)"
+            type="TimestampNs" />
+        <field name="timestamp"
+            id="3"
+            description="Message Timestamp"
+            type="TimestampNs" />
+        <field name="correlationId"
+            id="4"
+            description="Unique number to track message and/or response"
+            type="CorrelationId" />
+        <field name="command"
+            id="5"
+            description="Command name"
+            type="Command"/>
+        <field name="format"
+            id="6"
+            description="argument value format (same as GeniI cam 'data' pixel format)"
+            type="uint32" />
+        <field name="argument"
+            id="7"
+            description="Scalar value of argument value, padded to 64 bits. Interpret as dataType."
+            type="uint64"/>
+        <data name="payload"
+            id="8"
+            description="Byte buffer containing optional embeded payload e.g. embedded TensorMessage."
+            type="varDataEncoding" />
+    </sbe:message>
+
+    <sbe:message name="CommandStatus"
+        id="1"
+        description="A status message emitted in response to a command">
+        <field name="channelRcvTimestampNs"
+            id="1"
+            description="Timestamp of received message (optionally inserted by UDP transport)"
+            type="TimestampNs" />
+        <field name="channelSndTimestampNs"
+            id="2"
+            description="Timestamp of message sent (optionally inserted by UDP transport)"
+            type="TimestampNs" />
+        <field name="timestamp"
+            id="3"
+            description="Message Timestamp"
+            type="TimestampNs" />
+        <field name="correlationId"
+            id="4"
+            description="Unique number to track message and/or response. When responding to command, should be same as command's correlationId."
+            type="CorrelationId" />
+        <field name="errorCode"
+            id="5"
+            description="Unique number to track message and/or response. When responding to command, should be same as command's correlationId."
+            type="CorrelationId" />
+        <field name="responseMessage"
+            id="6"
+            description="text response"
+            type="ResponseText"/>
+    </sbe:message>
+
+</sbe:messageSchema>

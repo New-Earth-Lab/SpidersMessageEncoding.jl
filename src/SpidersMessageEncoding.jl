@@ -3,6 +3,8 @@ module SpidersMessageEncoding
 using SimpleBinaryEncoding
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/image.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/dmcommand.xml"))
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/command.xml"))
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/tensor.xml"))
 
 const MessageHeader = messageHeader
 export MessageHeader, ImageMessage, DmCommandMessage

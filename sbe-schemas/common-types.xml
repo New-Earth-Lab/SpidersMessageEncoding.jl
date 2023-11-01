@@ -27,6 +27,8 @@
     <type name="CorrelationId" description="Unique number"
         primitiveType="int64" />
     <type name="Description" description="Fixed string description" primitiveType="char" length="16" />
+    <type name="Command" description="Fixed string command name" primitiveType="char" length="32" />
+    <type name="ResponseText" description="Fixed string response name" primitiveType="char" length="32" />
     <type name="HeaderHash" description="Hashed value of static header members"
         primitiveType="uint32" />
     <type name="Dim" description="Non-zero unsigned" primitiveType="uint32"
