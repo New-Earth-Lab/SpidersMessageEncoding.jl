@@ -4,7 +4,7 @@
     package="chunk"
     id="3"
     version="0"
-    semanticVersion="5.2"
+    semanticVersion="0"
     description="Schema for chunked messages"
     byteOrder="littleEndian">
     <xi:include href="common-types.xml" />
@@ -34,8 +34,7 @@
         <data name="metadata"
             id="20"
             description="Metadata"
-            type="varAsciiEncoding" />
-
+            type="Description" />
     </sbe:message>
     <sbe:message name="ChunkDataMessage"
         id="2"
@@ -60,6 +59,10 @@
             id="11"
             description="Offset in bytes of destination in assembled buffer"
             type="uint64" />
+        <field name="description"
+            id="12"
+            description="Metadata"
+            type="Description" />            
         <data name="chunk"
             id="20"
             description="Byte buffer containing chunk data"

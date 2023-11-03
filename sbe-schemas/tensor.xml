@@ -4,23 +4,23 @@
     package="tensor"
     id="1"
     version="0"
-    semanticVersion="5.2"
+    semanticVersion=""
     description="Schema for tensor messages"
     byteOrder="littleEndian">
     <xi:include href="common-types.xml" />
     <types>
-        <!-- <enum name="Scalar" decscription="Scalar Data Types" encodingType="uint8">
-            <validValue name="Int8">1</validValue>
-            <validValue name="UInt8">2</validValue>
-            <validValue name="Int16">3</validValue>
-            <validValue name="UInt16">4</validValue>
-            <validValue name="Int32">5</validValue>
-            <validValue name="UInt32">6</validValue>
-            <validValue name="Int64">7</validValue>
-            <validValue name="UInt64">8</validValue>
-            <validValue name="Float32">9</validValue>
-            <validValue name="Float64">10</validValue>
-        </enum> -->
+        <enum name="Scalar" decscription="Scalar Data Types" encodingType="uint8">
+            <validValue name="ScalarInt8">1</validValue>
+            <validValue name="ScalarUInt8">2</validValue>
+            <validValue name="ScalarInt16">3</validValue>
+            <validValue name="ScalarUInt16">4</validValue>
+            <validValue name="ScalarInt32">5</validValue>
+            <validValue name="ScalarUInt32">6</validValue>
+            <validValue name="ScalarInt64">7</validValue>
+            <validValue name="ScalarUInt64">8</validValue>
+            <validValue name="ScalarFloat32">9</validValue>
+            <validValue name="ScalarFloat64">10</validValue>
+        </enum>
         <enum name="Order" description="Direction of stored data" encodingType="uint8">
             <validValue name="OrderRowMajor" description="Row-major ordering">0</validValue>
             <validValue name="OrderColumnMajor" description="Column-major ordering">1</validValue>
@@ -57,38 +57,34 @@
             type="Description" />
         <field name="format"
             id="6"
-            description="Pixel format"
+            description="Element data format in GenICam pixel format"
             type="uint32" />
-        <field name="shapeArray"
+        <field name="shape"
             id="7"
-            description="size along each dimension (trailing 0s if not present)."
-            type="uint32"
-            length="4" />
-        <field name="order"
+            description="Size along each dimension (trailing 0s if not present)."
+            type="uint32" length="4"/>
+        <field name="offset"
             id="8"
+            description="Offsets e.g. for sending a subarray."
+            type="uint32" length="4"/>
+        <field name="order"
+            id="9"
             description="Ordering of data in tensor (column or row major)"
             type="Order" />
-        <field name="offset"
-            id="9"
-            description="Offsets e.g. for sending a subarray."
-            type="uint32"
-            length="4"/>
-        <field name="padding"
+        <field name="reserved1"
             id="10"
-            description="Padding e.g. for sending a subarray."
-            type="uint32"
-            length="4"/>
+            description="Reserved field"
+            type="uint8"
+            length="3" />
         <field name="hash"
             id="11"
-            description="Hash value of description, shape, type, padding, and offset fields (CRC32)"
+            description="Hash value of description, shape, type, and offset fields (CRC32)"
             type="HeaderHash" />
         <data name="values"
-            id="12"
+            id="20"
             description="Byte buffer containing value data"
             type="varDataEncoding" />
     </sbe:message>
-
-<!-- 
     <sbe:message name="SparseMatrixCSXMessage"
         id="2"
         description="Compressed sparse row/column matrix format message">
@@ -193,9 +189,9 @@
             id="24"
             description="Starting value for index arrays"
             type="Indexing" />
-        <field name="padding"
+        <field name="reserved1"
             id="25"
-            description="Padding"
+            description="Reserved field"
             type="uint8"
             length="1" />
         <field name="hash"
@@ -210,5 +206,5 @@
             id="41"
             description="Byte buffer containing value data"
             type="varDataEncoding" />
-    </sbe:message> -->
+    </sbe:message>
 </sbe:messageSchema>
