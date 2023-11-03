@@ -75,6 +75,10 @@ function Base.eltype(img::ArbArrayMessage)
     return pixel_dtype_from_format(img.format)
 end
 
+# This is not type stable
+Base.ndims(ten::TensorMessage) = count(>(0), ten,shape)
+# This is; hence why we created ArrayMessage. It's just a TensorMessage 
+# with the `ndims` tracked by the type-system.
 Base.ndims(::ArrayMessage{N}) where N = N
 Base.size(img::ArbArrayMessage) = Int.(img.shape[1:ndims(img)])
 
