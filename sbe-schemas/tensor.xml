@@ -62,11 +62,11 @@
         <field name="shape"
             id="7"
             description="Size along each dimension (trailing 0s if not present)."
-            type="uint32" length="4"/>
+            type="UInt32Array4"/>
         <field name="offset"
             id="8"
             description="Offsets e.g. for sending a subarray."
-            type="uint32" length="4"/>
+            type="UInt32Array4"/>
         <field name="order"
             id="9"
             description="Ordering of data in tensor (column or row major)"
