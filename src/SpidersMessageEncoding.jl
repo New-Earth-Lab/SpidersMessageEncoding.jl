@@ -9,7 +9,7 @@ evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/tensor.xml
 # To set string contents without allocations, users should use StaticString.
 # Reexport the key string macros for their use.
 using StaticStrings
-export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, arraydata, arraydata!
+export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, arraydata, arraydata!, tensormessage
 
 const MessageHeader = messageHeader
 
@@ -31,6 +31,14 @@ struct ArrayMessage{T<:Any,N,TensorType}
         tensor.format = pixel_format_from_dtype(T) # type-unstable but should const-prop
         return new{T,N,BT}(tensor)
     end
+end
+# Type-unstable constructor.
+function tensormessage(buffer::AbstractVector{<:UInt8})
+    tensor = TensorMessage(buffer)
+    if tensor.format == 0
+        return TensorMessage(buffer)
+    end
+    return ArrayMessage{eltype(tensor),ndims(tensor)}(buffer)
 end
 
 # Forward to tensor
@@ -107,39 +115,29 @@ function arraymessagetype(tensor::ArbArrayMessage)
 end
 
 """
-Return an `ArrayMessage` given a `TensorMessage`.
-This will encoded the element type and dimensionality
-in the type system so future usage is type-stable
-(after a function barrier)
-
-If you can assume that the data type is not changing
-while subscribed to a stream, a good pattern is to 
-get the pixel format from an initial image and then
-use it inside a function barrier:
-```julia
 Aeron.subscribe(aeron_conf) do aeronsub
 
     # Get a first frame and fetch the data type 
     # dynamically
     first_data = first(aeronsub)
-    first_message = TensorMessage(first_data.buffer)
 
-    arr_message = ArrayMessage(first_message)
+    # determine size and shape dynamically
+    first_message = tensormessage(first_data.buffer)
 
     # Process the first image using this dynamically
-    # determined type. Continue after the function barrier.
-    process_image(arr_message)
+    # determined type.
+    process_image(first_message)
 
     # Function barrier: this lets Julia compile
     # code that is specialized to this image 
     # pixel format. After the first image,
     # this will be really fast.
-    letsgo(aeronsub, typeof(arr_message))
+    letsgo(aeronsub, typeof(first_message))
 end
 
-function letsgo(aeronsub, ::Type{MessageType}) where MessageType
+function letsgo(aeronsub, ::Type{T}) where T
     for frame in aeronsub
-        img = MessageType(frame.buffer)
+        img = T(frame.buffer)
         # Note the extra first argument! 
         pixmat = arraydata(ElType, img) 
         # use pixmat here:
@@ -236,13 +234,14 @@ Convenience constructor for creating taking a 2D array and byte buffer,
 and formatting it as an `TensorMessage` with width, height, format, and data type
 taken from the 2D array, then copying the data.
 """
-function ArrayMessage(buffer::AbstractVector{UInt8}, pixdat::Array{T,N}) where {T,N}
+function tensormessage(buffer::AbstractVector{UInt8}, pixdat::Array{T,N}) where {T,N}
     if N > 4
         error("only up to 4D arrays are supported")
     end
-    img = ArrayMessage{N}(buffer)
+    img = ArrayMessage{T,N}(buffer)
     arraydata!(img, pixdat)
     return img
-end
+end # TODO: test
+
 
 end;
