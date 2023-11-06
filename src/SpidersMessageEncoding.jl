@@ -150,12 +150,17 @@ function arraydata(img::ArbArrayMessage)
     ElType = eltype(img)
     return arraydata(ElType, img)
 end
-function arraydata(Eltype, img::ArbArrayMessage)
-    reint = reinterpret(
+function arraydata(Eltype::Type{T}, img::ArbArrayMessage) where T
+    data = img.values
+    @boundscheck if mod(length(data), sizeof(Eltype)) != 0
+        error("length of data is not a multiple of the element type")
+    end
+    # TODO: check element type
+    reint =  @inbounds reinterpret(
         Eltype,
-        img.values
+        data,
     )
-    reshp = reshape(
+    reshp = @inbounds reshape(
         reint,
         size(img)
     )
