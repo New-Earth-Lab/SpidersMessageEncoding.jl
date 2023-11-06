@@ -76,11 +76,22 @@ function Base.eltype(img::ArbArrayMessage)
 end
 
 # This is not type stable
-Base.ndims(ten::TensorMessage) = count(>(0), ten,shape)
+Base.ndims(ten::TensorMessage) = count(>(0), ten.shape)
+function Base.size(ten::TensorMessage)
+    if ten.shape[2] == 0
+        return (Int(ten.shape[1]),)
+    elseif ten.shape[3] == 0
+        return (Int(ten.shape[1]), Int(ten.shape[2]))
+    elseif ten.shape[4] == 0
+        return (Int(ten.shape[1]), Int(ten.shape[2]), Int(ten.shape[3]))
+    else
+        return (Int(ten.shape[1]), Int(ten.shape[2]), Int(ten.shape[3]), Int(ten.shape[4]))
+    end
+end
 # This is; hence why we created ArrayMessage. It's just a TensorMessage 
 # with the `ndims` tracked by the type-system.
 Base.ndims(::ArrayMessage{N}) where N = N
-Base.size(img::ArbArrayMessage) = Int.(img.shape[1:ndims(img)])
+Base.size(img::ArrayMessage) = Int.(img.shape[1:ndims(img)])
 
 
 """
