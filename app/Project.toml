@@ -1,0 +1,9 @@
+name = "SpidersMessageEncodingApp"
+uuid = "1be38944-6f3b-4e31-8ac7-3d1d5d2dec34"
+
+[deps]
+Aeron = "42ac8a32-990f-4d8c-aece-52d731103226"
+ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
+AstroImages = "fe3fc30c-9b16-11e9-1c73-17dabf39f4ad"
+PackageCompiler = "9b87118b-4619-50d2-8e1e-99f35a4d4d9d"
+SpidersMessageEncoding = "25d647a0-ef7d-4da3-8ba8-11abaa3d526c"
