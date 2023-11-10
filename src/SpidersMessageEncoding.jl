@@ -207,16 +207,16 @@ function _arraydata!(t::Type{ElType}, img::ArbArrayMessage, pixdat) where ElType
     img.format = pixel_format_from_dtype(ElType)
     resize!(img.values, prod(size(pixdat))*sizeof(ElType))
     sz1 = sz2 = sz3 = sz4 = 0
-    if ndims(img) >= 1
+    if ndims(pixdat) >= 1
         sz1 = size(pixdat,1)
     end
-    if ndims(img) >= 2
+    if ndims(pixdat) >= 2
         sz2 = size(pixdat,2)
     end
-    if ndims(img) >= 3
+    if ndims(pixdat) >= 3
         sz3 = size(pixdat,3)
     end
-    if ndims(img) >= 4
+    if ndims(pixdat) >= 4
         sz4 = size(pixdat,4)
     end
     img.shape = (sz1,sz2,sz3,sz4)
