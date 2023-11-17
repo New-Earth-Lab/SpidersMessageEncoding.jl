@@ -22,17 +22,26 @@
         <type name="length" primitiveType="uint32" maxValue="1073741824" />
         <type name="varData" primitiveType="uint8" length="0" />
     </composite>
-    <type name="TimestampNs" description="Timestamp in ns from UNIX epoch"
-        primitiveType="uint64" minValue="0" />
-    <type name="CorrelationId" description="Unique number"
-        primitiveType="int64" />
-    <type name="Description" description="Fixed string description" primitiveType="char" length="16" />
+    <composite name="SpidersMessageHeader" description="Common fields of SPIDERS messages">
+        <type name="channelRcvTimestampNs" primitiveType="int64"
+            description="Timestamp of received message (optionally inserted by UDP transport)" />
+        <type name="channelSndTimestampNs" primitiveType="int64"
+            description="Timestamp of message sent (optionally inserted by UDP transport)" />
+        <type name="TimestampNs" primitiveType="int64"
+            description="Message Timestamp" />
+        <type name="correlationId" primitiveType="int64"
+            description="Unique number to track message" />
+        <type name="description" primitiveType="char" length="32" description="Metadata field" />
+    </composite>
     <type name="Command" description="Fixed string command name" primitiveType="char" length="32" />
     <type name="ResponseText" description="Fixed string response name" primitiveType="char"
         length="32" />
     <type name="HeaderHash" description="Hashed value of static header members"
         primitiveType="uint32" />
     <type name="Dim" description="Non-zero unsigned" primitiveType="uint32" minValue="1" />
+    <type name="UInt32Array2" description="Fixed length array (2) of uint32" primitiveType="uint32"
+        length="2" />
     <type name="UInt32Array4" description="Fixed length array (4) of uint32" primitiveType="uint32"
         length="4" />
+
 </types>
