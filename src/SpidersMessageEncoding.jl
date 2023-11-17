@@ -9,7 +9,7 @@ evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/tensor.xml
 # To set string contents without allocations, users should use StaticString.
 # Reexport the key string macros for their use.
 using StaticStrings
-export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, CommandMessage, arraydata, arraydata!, tensormessage
+export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, CommandMessage, arraydata, arraydata!, tensormessage, getargument, setargument!
 
 const MessageHeader = messageHeader
 
@@ -89,7 +89,10 @@ const pixformat_pairs = (
     0x0120011C => Float32,
     0x0140011D => UInt64,
     0x0140011E => Int64,
-    0x0140011F => Float64
+    0x0140011F => Float64,
+
+    # Our codes: for storing another message type inside a variable length field
+    0xF0F0F0F0 => TensorMessage
 )
 # Not type-stable (return is union of all possible pixel types)
 function pixel_dtype_from_format(format::Integer) 
@@ -103,7 +106,8 @@ end
 # Type-stable and should const-propagate
 function pixel_format_from_dtype(DType::Type)
     for p in pixformat_pairs
-        if p[2] == DType
+        # if p[2] == DType
+        if DType <: p[2]
             return p[1]
         end
     end
@@ -242,6 +246,41 @@ function tensormessage(buffer::AbstractVector{UInt8}, pixdat::Array{T,N}) where 
     arraydata!(img, pixdat)
     return img
 end # TODO: test
+
+
+######################### Command Message handling ############
+function Base.eltype(cmd::CommandMessage)
+    return pixel_dtype_from_format(cmd.format)
+end
+function getargument(cmd::CommandMessage)::Union{last.(SpidersMessageEncoding.pixformat_pairs)...} # Too long to actually union-split
+    data = cmd.value
+    ElType = eltype(cmd)
+    if ElType <: SimpleBinaryEncoding.AbstractMessage
+        return ElType(data)
+    else
+        @boundscheck if length(data) != sizeof(ElType)
+            error("length of data is not correct for the element type")
+        end
+        reint = @inbounds reinterpret(
+            ElType, # unstable
+            data,
+        )
+        return reint[]
+    end
+end
+function setargument!(cmd::CommandMessage, value::ElType) where ElType
+    cmd.format = pixel_format_from_dtype(ElType)
+    resize!(cmd.value, sizeof(value))
+    if ElType <: SimpleBinaryEncoding.AbstractMessage
+        cmd.value .= view(getfield(value, :buffer), 1:sizeof(value))
+    else
+        reinterpret(
+            ElType,
+            cmd.value,
+        )[] = value
+    end
+    return value
+end
 
 
 end;
