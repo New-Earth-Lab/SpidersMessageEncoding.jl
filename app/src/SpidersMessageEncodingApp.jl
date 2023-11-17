@@ -41,24 +41,61 @@ function main(ARGS)
 
     ctx = AeronContext(;dir)
     conf = AeronConfig(;uri, stream)
-
+    
+    errorcode = 0
     commands = parsed_args["cmd"]
     array = parsed_args["array"]
     if !isempty(commands)
         # Prepare all messages first, and then send one after another without pause
-        messages = map(commands) do argstr
-            buf = zeros(UInt8, 100000)
-            cmd = CommandMessage(buf)
-            # cmd.timestamp = 
-            # cmd.format = 
-            # format = 0 implies there is another payload
-            # cmd.argument = 
-            # cmd.payload
-            # display(cmd)
-            resize!(buf, sizeof(cmd))
-            buf
+        # Note: nested map because users can do --cmd abc=10 def=10 or --cmd abc=10 --cmd def=10
+        messages = map(commands) do command_entries
+            return map(command_entries) do argstr
+                buf = zeros(UInt8, 100000)
+                cmd = CommandMessage(buf)
+                key, value = split(argstr, "=")
+                if isfile(value)
+                    data = FITS(value, "r")  do hdus
+                        read(hdus[1])
+                    end
+                    buf_inner = zeros(UInt8, 100+length(data)*sizeof(data))
+                    msg = TensorMessage(buf_inner)
+                    # FITS files are always at least 2d. If we get a single column, treat this as a vector.
+                    if ndims(data) == 2 && size(data,2) == 1
+                        data = dropdims(data,dims=2)
+                        @info "dropping trailing dimension of size 1"
+                    end
+                    arraydata!(msg, data)
+                    # TODO:
+                    # cmd.timestamp = 
+                    # cmd.format = 
+                    # format = 0 implies there is another payload
+                    # cmd.argument = 
+                    # cmd.payload
+                    # display(cmd)
+                    resize!(buf_inner, sizeof(msg))
+                    value_parsed = msg
+                else
+                    value_parsed = eval(Meta.parse(value)) # dangerous: evaluate user code directly since we don't know what type they want.
+                end
+                cmd.command = key
+                setargument!(cmd, value_parsed)
+                resize!(buf, sizeof(cmd))
+                return buf
+            end
         end
-        errorcode = 0
+        messages = collect(Iterators.flatten(messages))
+
+        # Complete by sending a commit message after all messages
+        buf = zeros(UInt8, 100000)
+        commit_msg = CommitMessage(buf)
+        # TODO: sequence number etc
+        resize!(buf, sizeof(commit_msg))
+        push!(messages, buf)
+
+
+        # TODO: working around a bug in Aeron.jl publisher code by connecting twice
+        Aeron.publisher(ctx, conf) do pub
+        end
         Aeron.publisher(ctx, conf) do pub
             for message in messages
                 status = put!(pub, message)
@@ -68,25 +105,22 @@ function main(ARGS)
                 end
             end
         end
-        return errorcode
     end
     if !isnothing(array)
 
-        @info "sending array message"
         data = FITS(array, "r")  do hdus
             read(hdus[1])
         end
         
         buf = zeros(UInt8, 100+length(data)*sizeof(data))
         msg = TensorMessage(buf)
-        @show size(data) sizeof(data) length(data)
         # FITS files are always at least 2d. If we get a single column, treat this as a vector.
         if ndims(data) == 2 && size(data,2) == 1
             data = dropdims(data,dims=2)
             @info "dropping trailing dimension of size 1"
         end
         arraydata!(msg, data)
-        display(msg)
+        # TODO:
         # cmd.timestamp = 
         # cmd.format = 
         # format = 0 implies there is another payload
@@ -102,10 +136,12 @@ function main(ARGS)
                 errorcode += 1
             end
         end
-        return errorcode
     end
-    println(stderr, "no action provided")
-    return 1
+    if isnothing(array) && isnothing(commands)
+        println(stderr, "no action provided")
+        errorcode = 127
+    end
+    return errorcode
 end
 
 
@@ -114,3 +150,21 @@ function julia_main()::Cint
   end
 
 end
+
+#=
+Example receiver:
+
+ Aeron.subscriber(ctx, conf) do sub
+        for frame in sub
+            msg = SpidersMessageEncoding.sbedecode(frame.buffer)
+            if msg isa CommandMessage
+                println(msg.command, " = ", string(getargument(msg))[1:min(20,end)])
+            elseif msg isa CommitMessage
+                println("COMMIT")
+            elseif msg isa TensorMessage || msg isa ArrayMessage
+                println("tensor")
+                display(arraydata(msg))
+            end
+        end
+    end
+=#
