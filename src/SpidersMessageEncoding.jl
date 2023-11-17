@@ -1,15 +1,14 @@
 module SpidersMessageEncoding
 
 using SimpleBinaryEncoding
-# evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/image.xml"))
-# evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/dmcommand.xml"))
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/generic.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/command.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/tensor.xml"))
 
 # To set string contents without allocations, users should use StaticString.
 # Reexport the key string macros for their use.
 using StaticStrings
-export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, CommandMessage, arraydata, arraydata!, tensormessage, getargument, setargument!, CommitMessage, StatusMessage
+export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, CommandMessage, arraydata, arraydata!, tensormessage, getargument, setargument!, CommitMessage, StatusMessage, GenericMessage
 
 const MessageHeader = messageHeader
 

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
+    xmlns:xi="http://www.w3.org/2001/XInclude"
+    package="command"
+    id="9"
+    version="0"
+    semanticVersion="5.2"
+    description="Schema for a generic SPIDERS message. The initial bytes of all message formats match this one"
+    byteOrder="littleEndian">
+    <xi:include href="common-types.xml" />
+    <sbe:message name="GenericMessage"
+        id="7"
+        description="The start of any message">
+        <field name="header"
+            id="1"
+            type="SpidersMessageHeader" />
+    </sbe:message>
+</sbe:messageSchema>
