@@ -9,26 +9,26 @@ function main(ARGS)
     s = ArgParseSettings()
     @add_arg_table! s begin
         "--dir"
-            help = "path to aeron media driver shared memory file"
-            arg_type = String
-            required = false
+        help = "path to aeron media driver shared memory file"
+        arg_type = String
+        required = false
         "--uri"
-            help = "aeron url to publish to"
-            arg_type = String
-            required = true
+        help = "aeron url to publish to"
+        arg_type = String
+        required = true
         "--stream"
-            help = "aeron stream number to publish to"
-            arg_type = Int
-            required = true
+        help = "aeron stream number to publish to"
+        arg_type = Int
+        required = true
         "--cmd"
-            nargs = '+'
-            action = "append_arg"
-            help = "SPIDERS command message entry to send (--command cmd [argument] [payload fits file path])"
-            arg_type = String
+        nargs = '+'
+        action = "append_arg"
+        help = "SPIDERS command message entry to send (--command cmd [argument] [payload fits file path])"
+        arg_type = String
         "--array"
-            nargs = '?'
-            help = "SPIDERS ArrayMessage entry to send (path to a FITS file)"
-            arg_type = String
+        nargs = '?'
+        help = "SPIDERS ArrayMessage entry to send (path to a FITS file)"
+        arg_type = String
     end
     parsed_args = parse_args(ARGS, s)
     if isnothing(parsed_args)
@@ -39,9 +39,9 @@ function main(ARGS)
     uri = parsed_args["uri"]
     stream = parsed_args["stream"]
 
-    ctx = AeronContext(;dir)
-    conf = AeronConfig(;uri, stream)
-    
+    ctx = AeronContext(; dir)
+    conf = AeronConfig(; uri, stream)
+
     errorcode = 0
     commands = parsed_args["cmd"]
     array = parsed_args["array"]
@@ -54,14 +54,14 @@ function main(ARGS)
                 cmd = CommandMessage(buf)
                 key, value = split(argstr, "=")
                 if isfile(value)
-                    data = FITS(value, "r")  do hdus
+                    data = FITS(value, "r") do hdus
                         read(hdus[1])
                     end
-                    buf_inner = zeros(UInt8, 100+length(data)*sizeof(data))
+                    buf_inner = zeros(UInt8, 100 + length(data) * sizeof(data))
                     msg = TensorMessage(buf_inner)
                     # FITS files are always at least 2d. If we get a single column, treat this as a vector.
-                    if ndims(data) == 2 && size(data,2) == 1
-                        data = dropdims(data,dims=2)
+                    if ndims(data) == 2 && size(data, 2) == 1
+                        data = dropdims(data, dims=2)
                         @info "dropping trailing dimension of size 1"
                     end
                     arraydata!(msg, data)
@@ -108,15 +108,15 @@ function main(ARGS)
     end
     if !isnothing(array)
 
-        data = FITS(array, "r")  do hdus
+        data = FITS(array, "r") do hdus
             read(hdus[1])
         end
-        
-        buf = zeros(UInt8, 100+length(data)*sizeof(data))
+
+        buf = zeros(UInt8, 100 + length(data) * sizeof(data))
         msg = TensorMessage(buf)
         # FITS files are always at least 2d. If we get a single column, treat this as a vector.
-        if ndims(data) == 2 && size(data,2) == 1
-            data = dropdims(data,dims=2)
+        if ndims(data) == 2 && size(data, 2) == 1
+            data = dropdims(data, dims=2)
             @info "dropping trailing dimension of size 1"
         end
         arraydata!(msg, data)
@@ -147,7 +147,7 @@ end
 
 function julia_main()::Cint
     return main(ARGS)::Cint
-  end
+end
 
 end
 

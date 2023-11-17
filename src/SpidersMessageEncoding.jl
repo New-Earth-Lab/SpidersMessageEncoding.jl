@@ -14,7 +14,7 @@ export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, Co
 const MessageHeader = messageHeader
 
 
-buffertype(d::TensorMessage{T}) where T = T
+buffertype(d::TensorMessage{T}) where {T} = T
 # Type alias for union of different array shapes
 
 # We want to create copies of TensorMessage that have a specific dimensionality
@@ -49,7 +49,7 @@ Base.propertynames(msg::ArrayMessage) = propertynames(getfield(msg, :tensor))
 Base.show(io::IO, mime::MIME"text/plain", msg::ArrayMessage) = Base.show(io::IO, mime, getfield(msg, :tensor))
 
 # type alias to refer to either specified dimension ArrayMessage or TensorMessage
-ArbArrayMessage = Union{ArrayMessage, TensorMessage}
+ArbArrayMessage = Union{ArrayMessage,TensorMessage}
 
 # Define some higher level functions to make working
 # with these types a little more convenient
@@ -95,7 +95,7 @@ const pixformat_pairs = (
     0xF0F0F0F0 => TensorMessage
 )
 # Not type-stable (return is union of all possible pixel types)
-function pixel_dtype_from_format(format::Integer) 
+function pixel_dtype_from_format(format::Integer)
     for p in pixformat_pairs
         if p[1] == format
             return p[2]
@@ -174,7 +174,7 @@ function arraydata(img::TensorMessage)
     @boundscheck if mod(length(data), sizeof(ElType)) != 0
         error("length of data is not a multiple of the element type")
     end
-    reint =  @inbounds reinterpret(
+    reint = @inbounds reinterpret(
         ElType, # unstable for unspecialized TensorMessage
         data,
     )
@@ -189,7 +189,7 @@ function arraydata(img::ArrayMessage{T,N}) where {T,N}
     @boundscheck if mod(length(data), sizeof(T)) != 0
         error("length of data is not a multiple of the element type")
     end
-    reint =  @inbounds reinterpret(
+    reint = @inbounds reinterpret(
         T, # unstable for unspecialized TensorMessage
         data,
     )
@@ -200,30 +200,30 @@ function arraydata(img::ArrayMessage{T,N}) where {T,N}
     return reshp
 end
 
-function arraydata!(img::TensorMessage, pixdat::Array{ElType}) where ElType
+function arraydata!(img::TensorMessage, pixdat::Array{ElType}) where {ElType}
     return _arraydata!(ElType, img, pixdat)
 end
 # For ArrayMessage, the user has already specified the element type in the message type parameter
-function arraydata!(img::ArrayMessage{ElType}, pixdat::Array) where ElType
+function arraydata!(img::ArrayMessage{ElType}, pixdat::Array) where {ElType}
     return _arraydata!(ElType, img, pixdat)
 end
-function _arraydata!(t::Type{ElType}, img::ArbArrayMessage, pixdat) where ElType
+function _arraydata!(t::Type{ElType}, img::ArbArrayMessage, pixdat) where {ElType}
     img.format = pixel_format_from_dtype(ElType)
-    resize!(img.values, prod(size(pixdat))*sizeof(ElType))
+    resize!(img.values, prod(size(pixdat)) * sizeof(ElType))
     sz1 = sz2 = sz3 = sz4 = 0
     if ndims(pixdat) >= 1
-        sz1 = size(pixdat,1)
+        sz1 = size(pixdat, 1)
     end
     if ndims(pixdat) >= 2
-        sz2 = size(pixdat,2)
+        sz2 = size(pixdat, 2)
     end
     if ndims(pixdat) >= 3
-        sz3 = size(pixdat,3)
+        sz3 = size(pixdat, 3)
     end
     if ndims(pixdat) >= 4
-        sz4 = size(pixdat,4)
+        sz4 = size(pixdat, 4)
     end
-    img.shape = (sz1,sz2,sz3,sz4)
+    img.shape = (sz1, sz2, sz3, sz4)
     a = arraydata(img)
     a .= pixdat
     return a
@@ -268,7 +268,7 @@ function getargument(cmd::CommandMessage)::Union{last.(SpidersMessageEncoding.pi
         return reint[]
     end
 end
-function setargument!(cmd::CommandMessage, value::ElType) where ElType
+function setargument!(cmd::CommandMessage, value::ElType) where {ElType}
     cmd.format = pixel_format_from_dtype(ElType)
     resize!(cmd.value, sizeof(value))
     if ElType <: SimpleBinaryEncoding.AbstractMessage
