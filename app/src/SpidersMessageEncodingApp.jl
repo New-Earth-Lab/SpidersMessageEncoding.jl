@@ -57,7 +57,8 @@ function main(ARGS)
                     data = FITS(value, "r") do hdus
                         read(hdus[1])
                     end
-                    buf_inner = zeros(UInt8, 100 + length(data) * sizeof(data))
+                    buf_inner = zeros(UInt8, 512 + sizeof(data))
+                    size(buf_inner)
                     msg = TensorMessage(buf_inner)
                     # FITS files are always at least 2d. If we get a single column, treat this as a vector.
                     if ndims(data) == 2 && size(data, 2) == 1
@@ -73,6 +74,9 @@ function main(ARGS)
                     # cmd.payload
                     # display(cmd)
                     resize!(buf_inner, sizeof(msg))
+                    if length(buf) < length(buf_inner) + sizeof(cmd) 
+                        resize!(buf, length(buf_inner) + sizeof(cmd))
+                    end
                     value_parsed = msg
                 else
                     value_parsed = eval(Meta.parse(value)) # dangerous: evaluate user code directly since we don't know what type they want.
@@ -86,7 +90,7 @@ function main(ARGS)
         messages = collect(Iterators.flatten(messages))
 
         # Complete by sending a commit message after all messages
-        buf = zeros(UInt8, 100000)
+        buf = zeros(UInt8, 512)
         commit_msg = CommitMessage(buf)
         # TODO: sequence number etc
         resize!(buf, sizeof(commit_msg))
@@ -112,7 +116,7 @@ function main(ARGS)
             read(hdus[1])
         end
 
-        buf = zeros(UInt8, 100 + length(data) * sizeof(data))
+        buf = zeros(UInt8, 512 + sizeof(data))
         msg = TensorMessage(buf)
         # FITS files are always at least 2d. If we get a single column, treat this as a vector.
         if ndims(data) == 2 && size(data, 2) == 1
