@@ -23,12 +23,13 @@ function main(ARGS)
         "--cmd"
         nargs = '+'
         action = "append_arg"
-        help = "SPIDERS command message entry to send (--command cmd [argument] [payload fits file path])"
+        help = "one or more SPIDERS command message entry to send (--command cmd [argument] [payload fits file path])"
         arg_type = String
         "--array"
-        nargs = '?'
-        help = "SPIDERS ArrayMessage entry to send (path to a FITS file)"
+        nargs = '+'
+        help = "one or more SPIDERS ArrayMessage entry to send (path to a FITS file)"
         arg_type = String
+        action = "append_arg"
     end
     parsed_args = parse_args(ARGS, s)
     if isnothing(parsed_args)
@@ -43,12 +44,12 @@ function main(ARGS)
     conf = AeronConfig(; uri, stream)
 
     errorcode = 0
-    commands = parsed_args["cmd"]
-    array = parsed_args["array"]
-    if !isempty(commands)
+    command_flags = parsed_args["cmd"]
+    array_flags = parsed_args["array"]
+    if !isempty(command_flags)
         # Prepare all messages first, and then send one after another without pause
         # Note: nested map because users can do --cmd abc=10 def=10 or --cmd abc=10 --cmd def=10
-        messages = map(commands) do command_entries
+        messages = map(command_flags) do command_entries
             return map(command_entries) do argstr
                 buf = zeros(UInt8, 100000)
                 cmd = CommandMessage(buf)
@@ -110,38 +111,45 @@ function main(ARGS)
             end
         end
     end
-    if !isnothing(array)
-
-        data = FITS(array, "r") do hdus
-            read(hdus[1])
+    bufs = []
+    for array_flag in array_flags
+        for array_fname in array_flag
+            data = FITS(array_fname, "r") do hdus
+                read(hdus[1])
+            end
+            buf = zeros(UInt8, 512 + sizeof(data))
+            msg = TensorMessage(buf)
+            # FITS files are always at least 2d. If we get a single column, treat this as a vector.
+            if ndims(data) == 2 && size(data, 2) == 1
+                data = dropdims(data, dims=2)
+                @info "dropping trailing dimension of size 1"
+            end
+            arraydata!(msg, data)
+            # TODO:
+            # cmd.timestamp = 
+            # cmd.format = 
+            # format = 0 implies there is another payload
+            # cmd.argument = 
+            # cmd.payload
+            # display(cmd)
+            resize!(buf, sizeof(msg))
+            push!(bufs, buf)
         end
-
-        buf = zeros(UInt8, 512 + sizeof(data))
-        msg = TensorMessage(buf)
-        # FITS files are always at least 2d. If we get a single column, treat this as a vector.
-        if ndims(data) == 2 && size(data, 2) == 1
-            data = dropdims(data, dims=2)
-            @info "dropping trailing dimension of size 1"
-        end
-        arraydata!(msg, data)
-        # TODO:
-        # cmd.timestamp = 
-        # cmd.format = 
-        # format = 0 implies there is another payload
-        # cmd.argument = 
-        # cmd.payload
-        # display(cmd)
-        resize!(buf, sizeof(msg))
-        errorcode = 0
+    end
+    if !isempty(bufs)
         Aeron.publisher(ctx, conf) do pub
-            status = put!(pub, buf)
-            if status != :success
-                @warn "message not published" status
-                errorcode += 1
+            for buf in bufs
+                status = put!(pub, buf)
+                if status != :success
+                    @warn "Message not published. Stopping." status
+                    errorcode += 1
+                    break
+                end
+                sleep(0.001)
             end
         end
     end
-    if isnothing(array) && isnothing(commands)
+    if isempty(array_flags) && isempty(command_flags)
         println(stderr, "no action provided")
         errorcode = 127
     end
