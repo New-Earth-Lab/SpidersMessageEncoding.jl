@@ -83,6 +83,7 @@ function main(ARGS)
                     value_parsed = eval(Meta.parse(value)) # dangerous: evaluate user code directly since we don't know what type they want.
                 end
                 cmd.command = key
+                cmd.header.description = "command"
                 setargument!(cmd, value_parsed)
                 resize!(buf, sizeof(cmd))
                 return buf
@@ -126,6 +127,7 @@ function main(ARGS)
             end
             arraydata!(msg, data)
             # TODO:
+            msg.header.description = "array data"
             # cmd.timestamp = 
             # cmd.format = 
             # format = 0 implies there is another payload
