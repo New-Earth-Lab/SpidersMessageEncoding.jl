@@ -288,7 +288,14 @@ function getargument(::Type{String}, cmd::CommandMessage)
         error("Requested format does not match message payload format.")
     end
     BytesType = NTuple{Int(length(cmd.value)),UInt8}
-    return NullTermString(cmd.value)
+    return NullTermString(parent(cmd.value))
+end
+function getargument(::Type{Symbol}, cmd::CommandMessage)
+    if cmd.format != ValueFormatString
+        error("Requested format does not match message payload format.")
+    end
+    BytesType = NTuple{Int(length(cmd.value)),UInt8}
+    return Symbol(NullTermString(parent(cmd.value)))
 end
 # We know what type of message payload:
 function getargument(T::Type{<:SimpleBinaryEncoding.AbstractMessage}, cmd::CommandMessage)
@@ -374,4 +381,6 @@ Base.firstindex(::NullTermString) = 1
 Base.lastindex(nstr::NullTermString) = Base.ncodeunits(nstr)
 Base.isempty(nstr::NullTermString) = Base.ncodeunits(nstr) == 0
 Base.getindex(nstr::NullTermString,i::Integer) = Char(nstr.buffer[i])
+# Uses internals!
+Base.Symbol(nstr::NullTermString) = Core._Symbol(pointer(nstr.buffer), length(nstr.buffer), nstr.buffer)
 end;

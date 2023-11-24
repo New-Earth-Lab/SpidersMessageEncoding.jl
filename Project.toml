@@ -1,7 +1,7 @@
 name = "SpidersMessageEncoding"
 uuid = "25d647a0-ef7d-4da3-8ba8-11abaa3d526c"
 author = "William Thompson"
-version = "2.2.1"
+version = "2.2.2"
 
 [deps]
 LightXML = "9c8b4983-aa76-5018-a973-4c85ecc9e179"
