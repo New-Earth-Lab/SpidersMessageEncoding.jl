@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
+    xmlns:xi="http://www.w3.org/2001/XInclude"
+    package="log"
+    id="10"
+    version="0"
+    semanticVersion=""
+    description="Schema for log messages"
+    byteOrder="littleEndian">
+    <xi:include href="common-types.xml" />
+    <types>
+            <enum name="LogLevel" decscription="Logging Level" encodingType="int32">
+                <validValue name="Emergency">0</validValue>
+                <validValue name="Alert">1</validValue>
+                <validValue name="Critical">2</validValue>
+                <validValue name="Error">3</validValue>
+                <validValue name="Warning">4</validValue>
+                <validValue name="Notice">5</validValue>
+                <validValue name="Informational">6</validValue>
+                <validValue name="Debug">7</validValue>
+            </enum>
+    </types>
+    <sbe:message name="LogMessage"
+        id="1"
+        description="Log Message Format">
+        <field name="header"
+            id="1"
+            type="SpidersMessageHeader" />
+        <field name="level"
+            id="2"
+            description="Log Level"
+            type="LogLevel" />
+        <field name="line"
+            id="3"
+            description="Line number in source file"
+            type="uint32" />
+        <data name="file"
+            id="4"
+            description="Source filename of message"
+            type="varStringEncoding" />
+        <field name="group"
+            id="5"
+            description="Message Group"
+            type="varStringEncoding" />
+        <field name="id"
+            id="6"
+            description="Generated unique identifier"
+            type="varStringEncoding" />
+        <field name="module"
+            id="7"
+            description="Module"
+            type="varStringEncoding" />
+        <field name="message"
+            id="8"
+            description="Logging Message"
+            type="varStringEncoding" />
+        <field name="kwargs"
+            id="9"
+            description="Keyword arguments string in logfmt"
+            type="varStringEncoding" />
+    </sbe:message>
+</sbe:messageSchema>

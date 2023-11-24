@@ -4,11 +4,30 @@ using SimpleBinaryEncoding
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/generic.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/command.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/tensor.xml"))
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/log.xml"))
 
 # To set string contents without allocations, users should use StaticString.
 # Reexport the key string macros for their use.
 using StaticStrings
-export @static_str, @cstatic_str, MessageHeader, ArrayMessage, TensorMessage, CommandMessage, arraydata, arraydata!, tensormessage, getargument, setargument!, CommitMessage, StatusMessage, GenericMessage
+
+export @static_str,
+       @cstatic_str,
+       MessageHeader,
+       GenericMessage,
+       ArrayMessage,
+       TensorMessage,
+       CommandMessage,
+       LogMessage,
+       CommitMessage,
+       StatusMessage,
+       arraydata,
+       arraydata!,
+       tensormessage,
+       getargument,
+       setargument!,
+       ValueFormatNumber,
+       ValueFormatString,
+       ValueFormatMessage
 
 const MessageHeader = messageHeader
 
@@ -18,7 +37,7 @@ buffertype(d::TensorMessage{T}) where {T} = T
 
 # We want to create copies of TensorMessage that have a specific dimensionality
 # This is to allow easier type-stable access to the underlying data for the user.
-struct ArrayMessage{T<:Any,N,TensorType}
+struct ArrayMessage{T<:Any,N,TensorType} <: SimpleBinaryEncoding.AbstractMessage
     tensor::TensorMessage{TensorType}
     function ArrayMessage{T,N}(args...; kwargs...) where {T,N}
         tensor = TensorMessage(args...; kwargs...)
@@ -89,9 +108,6 @@ const pixformat_pairs = (
     0x0140011D => UInt64,
     0x0140011E => Int64,
     0x0140011F => Float64,
-
-    # Our codes: for storing another message type inside a variable length field
-    0xF0F0F0F0 => TensorMessage
 )
 # Not type-stable (return is union of all possible pixel types)
 function pixel_dtype_from_format(format::Integer)
@@ -248,38 +264,114 @@ end # TODO: test
 
 
 ######################### Command Message handling ############
-function Base.eltype(cmd::CommandMessage)
-    return pixel_dtype_from_format(cmd.format)
+# function Base.eltype(cmd::CommandMessage)
+#     if cmd.format == ValueFormatNumber
+#         return Float64
+#     elseif cmd.format == ValueFormatString
+#         return CStaticString
+#     elseif cmd.format == ValueFormatMessage
+#         return 
+#     return pixel_dtype_from_format(cmd.format)
+# end
+
+function getargument(::Type{Float64}, cmd::CommandMessage)
+    if cmd.format != ValueFormatNumber
+        error("Requested format does not match message payload format.")
+    end
+    @boundscheck if length(cmd.value) != sizeof(Float64)
+        error("length of data is not correct for the element type")
+    end
+    return @inbounds reinterpret(Float64, cmd.value,)[]
 end
-function getargument(cmd::CommandMessage)::Union{last.(SpidersMessageEncoding.pixformat_pairs)...} # Too long to actually union-split
-    data = cmd.value
-    ElType = eltype(cmd)
-    if ElType <: SimpleBinaryEncoding.AbstractMessage
-        return ElType(data)
+function getargument(::Type{String}, cmd::CommandMessage)
+    if cmd.format != ValueFormatString
+        error("Requested format does not match message payload format.")
+    end
+    BytesType = NTuple{Int(length(cmd.value)),UInt8}
+    return NullTermString(cmd.value)
+end
+# We know what type of message payload:
+function getargument(T::Type{<:SimpleBinaryEncoding.AbstractMessage}, cmd::CommandMessage)
+    if cmd.format != ValueFormatMessage
+        error("Requested format does not match message payload format.")
+    end
+    return T(cmd.value)
+end
+# We want to determine the type of the message payload dynamically:
+function getargument(::Type{SimpleBinaryEncoding.AbstractMessage}, cmd::CommandMessage)
+    if cmd.format != ValueFormatMessage
+        error("Requested format does not match message payload format.")
+    end
+    return SpidersMessageEncoding.sbedecode(cmd.value)
+end
+
+# Fully dynamic
+function getargument(cmd::CommandMessage)
+    if cmd.format == ValueFormatNumber
+        return getargument(Float64, cmd)
+    elseif cmd.format == ValueFormatString
+        return getargument(String, cmd)
+    elseif cmd.format == ValueFormatMessage
+        return getargument(SimpleBinaryEncoding.AbstractMessage, cmd)
     else
-        @boundscheck if length(data) != sizeof(ElType)
-            error("length of data is not correct for the element type")
-        end
-        reint = @inbounds reinterpret(
-            ElType, # unstable
-            data,
-        )
-        return reint[]
+        error("CommandMessage format field is set to $(cmd.format) which is not supported")
     end
 end
-function setargument!(cmd::CommandMessage, value::ElType) where {ElType}
-    cmd.format = pixel_format_from_dtype(ElType)
+
+
+function setargument!(cmd::CommandMessage,value::Number)
+    cmd.format = ValueFormatNumber
+    resize!(cmd.value, 8)
+    return reinterpret(Float64, cmd.value,)[] = value
+end
+function setargument!(cmd::CommandMessage, value::AbstractString)
+    cmd.format = ValueFormatString
     resize!(cmd.value, sizeof(value))
-    if ElType <: SimpleBinaryEncoding.AbstractMessage
-        cmd.value .= view(getfield(value, :buffer), 1:sizeof(value))
-    else
-        reinterpret(
-            ElType,
-            cmd.value,
-        )[] = value
+    for i in 1:sizeof(value)
+        cmd.value[i] = codeunit(value,i)
     end
     return value
 end
 
+function setargument!(cmd::CommandMessage, value::SimpleBinaryEncoding.AbstractMessage)
+    cmd.format = ValueFormatMessage
+    resize!(cmd.value, sizeof(value))
+    copy!(cmd.value, getfield(value, :buffer))
+    return value
+end
+function setargument!(cmd::CommandMessage, value::ArrayMessage)
+    cmd.format = ValueFormatMessage
+    resize!(cmd.value, sizeof(value))
+    copy!(cmd.value, getfield(getfield(value, :tensor), :buffer))
+    return value
+end
 
+# We need to implement our own type-stable C-style null-terminated string to avoid allocations
+# here. 
+struct NullTermString{TBuf} <: AbstractString
+    buffer::TBuf
+end
+function Base.ncodeunits(nstr::NullTermString)
+    for i in 1:length(nstr.buffer)
+        if nstr.buffer[i] == 0x00
+            return i
+        end
+    end
+    return length(nstr.buffer)
+end
+Base.codeunit(::NullTermString) = UInt8
+Base.codeunit(nstr::NullTermString, i::Integer) = Char(nstr.buffer[i])
+Base.isvalid(nstr::NullTermString, i::Integer) = true
+Base.iterate(nstr::NullTermString, i::Integer=1) = if i < Base.ncodeunits(nstr)
+    nstr[i], i+1
+else
+    nothing
+end
+
+Base.eltype(::NullTermString) = Char
+Base.sizeof(nstr::NullTermString) = sizeof(nstr.buffer)
+Base.firstindex(::NullTermString) = 1
+Base.lastindex(nstr::NullTermString) = Base.ncodeunits(nstr)
+Base.isempty(nstr::NullTermString) = Base.ncodeunits(nstr) == 0
+Base.getindex(nstr::NullTermString,i::Integer) = Char(nstr.buffer[i])
 end;

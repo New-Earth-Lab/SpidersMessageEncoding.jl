@@ -4,13 +4,20 @@
     package="command"
     id="6"
     version="0"
-    semanticVersion="5.2"
-    description="Schema for tensor messages"
+    semanticVersion=""
+    description="Schema for command messages"
     byteOrder="littleEndian">
     <xi:include href="common-types.xml" />
+    <types>
+        <enum name="ValueFormat" decscription="Value Format" encodingType="int32">
+            <validValue name="ValueFormatNumber">1</validValue>
+            <validValue name="ValueFormatString">2</validValue>
+            <validValue name="ValueFormatMessage">3</validValue>
+        </enum>
+    </types>
     <sbe:message name="CommandMessage"
-        id="7"
-        description="A command">
+        id="1"
+        description="Command Message Format">
         <field name="header"
             id="1"
             type="SpidersMessageHeader" />
@@ -20,24 +27,22 @@
             type="Command" />
         <field name="format"
             id="3"
-            description="data format for value"
-            type="uint32" />
+            description="Data format for value"
+            type="ValueFormat" />
         <data name="value"
-            id="4"
+            id="20"
             description="Byte buffer containing value of type format"
             type="varDataEncoding" />
     </sbe:message>
-
-     <sbe:message name="CommitMessage"
-        id="8"
+    <sbe:message name="CommitMessage"
+        id="2"
         description="Commit any pending commands">
         <field name="header"
             id="1"
             type="SpidersMessageHeader" />
     </sbe:message>
-
     <sbe:message name="StatusMessage"
-        id="9"
+        id="3"
         description="A status message emitted in response to a command">
         <field name="header"
             id="1"
@@ -49,7 +54,6 @@
         <field name="responseMessage"
             id="6"
             description="text response"
-            type="ResponseText"/>
+            type="ResponseText" />
     </sbe:message>
-
 </sbe:messageSchema>

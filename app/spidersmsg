@@ -3,4 +3,4 @@
 # Location of current script file
 DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-julia +1.10 --startup-file=no --project=$DIR -e "using SpidersMessageEncodingApp; SpidersMessageEncodingApp.main(ARGS);" -- "$@"
+julia --startup-file=no --project=$DIR -e "using SpidersMessageEncodingApp; SpidersMessageEncodingApp.main(ARGS);" -- "$@"
