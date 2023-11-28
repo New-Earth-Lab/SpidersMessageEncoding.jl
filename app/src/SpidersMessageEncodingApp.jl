@@ -47,6 +47,10 @@ function main(ARGS)
     command_flags = parsed_args["cmd"]
     array_flags = parsed_args["array"]
     if !isempty(command_flags)
+
+        # All messages are sent with the same correlation number, followed by a commit message
+        corr_num = rand(Int64)
+
         # Prepare all messages first, and then send one after another without pause
         # Note: nested map because users can do --cmd abc=10 def=10 or --cmd abc=10 --cmd def=10
         messages = map(command_flags) do command_entries
@@ -68,22 +72,27 @@ function main(ARGS)
                     end
                     arraydata!(msg, data)
                     # TODO:
-                    # cmd.timestamp = 
-                    # cmd.format = 
-                    # format = 0 implies there is another payload
-                    # cmd.argument = 
-                    # cmd.payload
-                    # display(cmd)
+                    cmd.header.TimestampNs           = 0 # TODO
+                    cmd.header.correlationId         = corr_num
+                    cmd.header.description           = "" # TODO. Need to be able to specify?
                     resize!(buf_inner, sizeof(msg))
                     if length(buf) < length(buf_inner) + sizeof(cmd) 
                         resize!(buf, length(buf_inner) + sizeof(cmd))
                     end
                     value_parsed = msg
                 else
-                    value_parsed = eval(Meta.parse(value)) # dangerous: evaluate user code directly since we don't know what type they want.
+                    # TODO: had better code on RTC but not committed
+                    flt = tryparse(Float64, value)
+                    if isnothing(flt)
+                        value_parsed = value
+                    else
+                        value_parsed = flt
+                    end
                 end
                 cmd.command = key
-                cmd.header.description = "command"
+                cmd.header.TimestampNs           = 0 # TODO
+                cmd.header.correlationId         = corr_num
+                cmd.header.description           = "command"
                 setargument!(cmd, value_parsed)
                 resize!(buf, sizeof(cmd))
                 return buf
@@ -94,7 +103,9 @@ function main(ARGS)
         # Complete by sending a commit message after all messages
         buf = zeros(UInt8, 512)
         commit_msg = CommitMessage(buf)
-        # TODO: sequence number etc
+        commit_msg.header.TimestampNs           = 0 # TODO
+        commit_msg.header.correlationId         = corr_num
+        commit_msg.header.description           = "command line commit"
         resize!(buf, sizeof(commit_msg))
         push!(messages, buf)
 
