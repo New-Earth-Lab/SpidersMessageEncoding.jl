@@ -18,7 +18,7 @@ function main(ARGS)
         "--uri"
         help = "aeron url to publish to"
         arg_type = String
-        required = true
+        default = "aeron:ipc"
         "--stream"
         help = "aeron stream number to publish to"
         arg_type = Int
@@ -150,7 +150,6 @@ function sendcmds(pub::Aeron.AeronPublication; kwargs...)
             end
             value = msg
         elseif value isa AbstractString 
-            # TODO: had better code on RTC but not committed
             flt = tryparse(Float64, value)
             if isnothing(flt)
                 value = value
