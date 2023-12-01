@@ -50,6 +50,7 @@ struct ArrayMessage{T<:Any,N,TensorType} <: SimpleBinaryEncoding.AbstractMessage
         return new{T,N,BT}(tensor)
     end
 end
+Base.parent(msg::ArrayMessage) = parent(getfield(msg, :tensor))
 # Type-unstable constructor.
 function tensormessage(buffer::AbstractVector{<:UInt8})
     tensor = TensorMessage(buffer)
