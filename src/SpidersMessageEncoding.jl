@@ -308,7 +308,9 @@ end
 
 # Fully dynamic
 function getargument(cmd::EventMessage)
-    if cmd.format == ValueFormatNumber
+    if cmd.format == ValueFormatNothing
+        return getargument(Float64, cmd)
+    elseif cmd.format == ValueFormatNumber
         return getargument(Float64, cmd)
     elseif cmd.format == ValueFormatString
         return getargument(String, cmd)
@@ -347,11 +349,16 @@ function setargument!(cmd::EventMessage, value::ArrayMessage)
     return value
 end
 
+# For this method, user is responsible for setting the cmd.format appropriately.
 function setargument!(cmd::EventMessage, value::AbstractArray{UInt8})
     cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
     copy!(cmd.value, value)
     return value
 end
-
+function setargument!(cmd::EventMessage, value::Nothing)
+    cmd.format = ValueFormatMessage
+    resize!(cmd.value, 0)
+    return value
+end
 end;

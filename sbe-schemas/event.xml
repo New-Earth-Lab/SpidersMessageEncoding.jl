@@ -10,6 +10,7 @@
     <xi:include href="common-types.xml" />
     <types>
         <enum name="ValueFormat" decscription="Value Format" encodingType="int32">
+            <validValue name="ValueFormatNothing">0</validValue>
             <validValue name="ValueFormatNumber">1</validValue>
             <validValue name="ValueFormatString">2</validValue>
             <validValue name="ValueFormatMessage">3</validValue>
