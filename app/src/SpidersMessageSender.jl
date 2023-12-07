@@ -188,20 +188,20 @@ function sendcmds(pub::Aeron.AeronPublication; kwargs...)
 end
 
 
-sendarray(data; uri, stream) = sendarray(AeronConfig(;uri,stream), data;)
-sendarray(ctx::AeronContext, data; uri, stream) = sendarray(ctx, AeronConfig(;uri,stream), data)
-function sendarray(conf::AeronConfig, data)
+sendarray(data; uri, stream, description="") = sendarray(AeronConfig(;uri,stream), data; description)
+sendarray(ctx::AeronContext, data; uri, stream, description="") = sendarray(ctx, AeronConfig(;uri,stream), data; description)
+function sendarray(conf::AeronConfig, data; description="")
     AeronContext() do ctx
-        sendarray(ctx, conf, data)
+        sendarray(ctx, conf, data; description)
     end
 end
-function sendarray(ctx::AeronContext, conf::AeronConfig, data)
+function sendarray(ctx::AeronContext, conf::AeronConfig, data;description="")
     Aeron.publisher(ctx, conf) do pub
-        sendarray(pub, data)
+        sendarray(pub, data; description)
     end
 end
 
-function sendarray(pub::Aeron.AeronPublication, data)
+function sendarray(pub::Aeron.AeronPublication, data; description="")
 
     buf = zeros(UInt8, 512 + sizeof(data))
     msg = TensorMessage(buf)
@@ -212,7 +212,7 @@ function sendarray(pub::Aeron.AeronPublication, data)
     end
     arraydata!(msg, data)
     # TODO:
-    msg.header.description = "array data"
+    msg.header.description = description
     # cmd.timestamp = 
     # cmd.format = 
     # format = 0 implies there is another payload
