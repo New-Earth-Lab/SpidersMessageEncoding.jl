@@ -33,9 +33,7 @@
             description="Unique number to track message" />
         <type name="description" primitiveType="char" length="32" description="Metadata field" />
     </composite>
-    <type name="Command" description="Fixed string command name" primitiveType="char" length="32" />
-    <type name="ResponseText" description="Fixed string response name" primitiveType="char"
-        length="32" />
+    <type name="EventName" description="Fixed string event name" primitiveType="char" length="32" />
     <type name="HeaderHash" description="Hashed value of static header members"
         primitiveType="uint32" />
     <type name="Dim" description="Non-zero unsigned" primitiveType="uint32" minValue="1" />

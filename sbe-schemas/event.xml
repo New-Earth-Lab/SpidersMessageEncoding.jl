@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sbe:messageSchema xmlns:sbe="http://fixprotocol.io/2016/sbe"
     xmlns:xi="http://www.w3.org/2001/XInclude"
-    package="command"
+    package="event"
     id="6"
     version="0"
     semanticVersion=""
-    description="Schema for command messages"
+    description="Schema for event messages"
     byteOrder="littleEndian">
     <xi:include href="common-types.xml" />
     <types>
@@ -15,45 +15,30 @@
             <validValue name="ValueFormatMessage">3</validValue>
         </enum>
     </types>
-    <sbe:message name="CommandMessage"
+    <sbe:message name="EventMessage"
         id="1"
-        description="Command Message Format">
+        description="Event Message Format">
         <field name="header"
             id="1"
             type="SpidersMessageHeader" />
-        <field name="command"
+        <field name="name"
             id="2"
-            description="Command name"
-            type="Command" />
+            description="Event identifier"
+            type="EventName" />
         <field name="format"
             id="3"
             description="Data format for value"
             type="ValueFormat" />
         <data name="value"
             id="20"
-            description="Byte buffer containing value of type format"
+            description="Byte buffer containing value"
             type="varDataEncoding" />
     </sbe:message>
-    <sbe:message name="CommitMessage"
+     <sbe:message name="StatusRequestMessage"
         id="2"
-        description="Commit any pending commands">
+        description="Request current state to be emitted in the form of EventMessages">
         <field name="header"
             id="1"
             type="SpidersMessageHeader" />
-    </sbe:message>
-    <sbe:message name="StatusMessage"
-        id="3"
-        description="A status message emitted in response to a command">
-        <field name="header"
-            id="1"
-            type="SpidersMessageHeader" />
-        <field name="errorCode"
-            id="5"
-            description="Error code"
-            type="uint8" />
-        <field name="responseMessage"
-            id="6"
-            description="text response"
-            type="ResponseText" />
     </sbe:message>
 </sbe:messageSchema>

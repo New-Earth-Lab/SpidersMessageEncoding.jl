@@ -1,8 +1,9 @@
 module SpidersMessageEncoding
 
 using SimpleBinaryEncoding
+using SimpleBinaryEncoding: NullTermString
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/generic.xml"))
-evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/command.xml"))
+evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/event.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/tensor.xml"))
 evalschema(SpidersMessageEncoding, joinpath(@__DIR__, "../sbe-schemas/log.xml"))
 
@@ -12,27 +13,29 @@ using StaticStrings
 
 export @static_str,
        @cstatic_str,
+       StaticString,
+       CStaticString, 
        MessageHeader,
        GenericMessage,
        ArrayMessage,
        TensorMessage,
-       CommandMessage,
+       EventMessage,
+       StatusRequestMessage,
        LogMessage,
-       CommitMessage,
-       StatusMessage,
        arraydata,
        arraydata!,
        tensormessage,
        getargument,
        setargument!,
+       ValueFormat,
        ValueFormatNumber,
        ValueFormatString,
        ValueFormatMessage
 
-const MessageHeader = messageHeader
+const MessageHeader = messageHeader 
 
 
-buffertype(d::TensorMessage{T}) where {T} = T
+buffertype(::TensorMessage{T}) where {T} = T
 # Type alias for union of different array shapes
 
 # We want to create copies of TensorMessage that have a specific dimensionality
@@ -265,17 +268,7 @@ end # TODO: test
 
 
 ######################### Command Message handling ############
-# function Base.eltype(cmd::CommandMessage)
-#     if cmd.format == ValueFormatNumber
-#         return Float64
-#     elseif cmd.format == ValueFormatString
-#         return CStaticString
-#     elseif cmd.format == ValueFormatMessage
-#         return 
-#     return pixel_dtype_from_format(cmd.format)
-# end
-
-function getargument(::Type{Float64}, cmd::CommandMessage)
+function getargument(::Type{Float64}, cmd::EventMessage)
     if cmd.format != ValueFormatNumber
         error("Requested format does not match message payload format.")
     end
@@ -284,14 +277,14 @@ function getargument(::Type{Float64}, cmd::CommandMessage)
     end
     return @inbounds reinterpret(Float64, cmd.value,)[]
 end
-function getargument(::Type{String}, cmd::CommandMessage)
+function getargument(::Type{String}, cmd::EventMessage)
     if cmd.format != ValueFormatString
         error("Requested format does not match message payload format.")
     end
     BytesType = NTuple{Int(length(cmd.value)),UInt8}
     return NullTermString(parent(cmd.value))
 end
-function getargument(::Type{Symbol}, cmd::CommandMessage)
+function getargument(::Type{Symbol}, cmd::EventMessage)
     if cmd.format != ValueFormatString
         error("Requested format does not match message payload format.")
     end
@@ -299,14 +292,14 @@ function getargument(::Type{Symbol}, cmd::CommandMessage)
     return Symbol(NullTermString(parent(cmd.value)))
 end
 # We know what type of message payload:
-function getargument(T::Type{<:SimpleBinaryEncoding.AbstractMessage}, cmd::CommandMessage)
+function getargument(T::Type{<:SimpleBinaryEncoding.AbstractMessage}, cmd::EventMessage)
     if cmd.format != ValueFormatMessage
         error("Requested format does not match message payload format.")
     end
     return T(cmd.value)
 end
 # We want to determine the type of the message payload dynamically:
-function getargument(::Type{SimpleBinaryEncoding.AbstractMessage}, cmd::CommandMessage)
+function getargument(::Type{SimpleBinaryEncoding.AbstractMessage}, cmd::EventMessage)
     if cmd.format != ValueFormatMessage
         error("Requested format does not match message payload format.")
     end
@@ -314,7 +307,7 @@ function getargument(::Type{SimpleBinaryEncoding.AbstractMessage}, cmd::CommandM
 end
 
 # Fully dynamic
-function getargument(cmd::CommandMessage)
+function getargument(cmd::EventMessage)
     if cmd.format == ValueFormatNumber
         return getargument(Float64, cmd)
     elseif cmd.format == ValueFormatString
@@ -322,17 +315,17 @@ function getargument(cmd::CommandMessage)
     elseif cmd.format == ValueFormatMessage
         return getargument(SimpleBinaryEncoding.AbstractMessage, cmd)
     else
-        error("CommandMessage format field is set to $(cmd.format) which is not supported")
+        error("EventMessage format field is set to $(cmd.format) which is not supported")
     end
 end
 
 
-function setargument!(cmd::CommandMessage,value::Number)
+function setargument!(cmd::EventMessage,value::Number)
     cmd.format = ValueFormatNumber
     resize!(cmd.value, 8)
     return reinterpret(Float64, cmd.value,)[] = value
 end
-function setargument!(cmd::CommandMessage, value::AbstractString)
+function setargument!(cmd::EventMessage, value::AbstractString)
     cmd.format = ValueFormatString
     resize!(cmd.value, sizeof(value))
     for i in 1:sizeof(value)
@@ -341,47 +334,24 @@ function setargument!(cmd::CommandMessage, value::AbstractString)
     return value
 end
 
-function setargument!(cmd::CommandMessage, value::SimpleBinaryEncoding.AbstractMessage)
+function setargument!(cmd::EventMessage, value::SimpleBinaryEncoding.AbstractMessage)
     cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
     copy!(cmd.value, getfield(value, :buffer))
     return value
 end
-function setargument!(cmd::CommandMessage, value::ArrayMessage)
+function setargument!(cmd::EventMessage, value::ArrayMessage)
     cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
     copy!(cmd.value, getfield(getfield(value, :tensor), :buffer))
     return value
 end
 
-# We need to implement our own type-stable C-style null-terminated string to avoid allocations
-# here. 
-struct NullTermString{TBuf} <: AbstractString
-    buffer::TBuf
-end
-function Base.ncodeunits(nstr::NullTermString)
-    for i in 1:length(nstr.buffer)
-        if nstr.buffer[i] == 0x00
-            return i
-        end
-    end
-    return length(nstr.buffer)
-end
-Base.codeunit(::NullTermString) = UInt8
-Base.codeunit(nstr::NullTermString, i::Integer) = Char(nstr.buffer[i])
-Base.isvalid(nstr::NullTermString, i::Integer) = true
-Base.iterate(nstr::NullTermString, i::Integer=1) = if i < Base.ncodeunits(nstr)
-    nstr[i], i+1
-else
-    nothing
+function setargument!(cmd::EventMessage, value::AbstractArray{UInt8})
+    cmd.format = ValueFormatMessage
+    resize!(cmd.value, sizeof(value))
+    copy!(cmd.value, value)
+    return value
 end
 
-Base.eltype(::NullTermString) = Char
-Base.sizeof(nstr::NullTermString) = sizeof(nstr.buffer)
-Base.firstindex(::NullTermString) = 1
-Base.lastindex(nstr::NullTermString) = Base.ncodeunits(nstr)
-Base.isempty(nstr::NullTermString) = Base.ncodeunits(nstr) == 0
-Base.getindex(nstr::NullTermString,i::Integer) = Char(nstr.buffer[i])
-# Uses internals!
-Base.Symbol(nstr::NullTermString) = Core._Symbol(pointer(nstr.buffer), length(nstr.buffer), nstr.buffer)
 end;
