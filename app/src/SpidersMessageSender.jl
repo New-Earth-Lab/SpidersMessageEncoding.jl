@@ -139,7 +139,7 @@ function sendevents(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscription; k
         buf = zeros(UInt8, 100000)
         event = EventMessage(buf)
         # Handle an array valued argument or a path to a FITS file
-        if (value isa AbstractString && isfile(String(value))) || 
+        if (value isa AbstractString && endswith(String(value), r"\.fits?(\.gz)?"i)) || 
            (value isa AbstractArray)
             if value isa AbstractString
                 data = FITS(value, "r") do hdus
@@ -197,7 +197,7 @@ function sendevents(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscription; k
     bytes_recv = 0
     total_bytes_recv = 0
     acks_received = 0
-    while bytes_recv > 0 || (acks_received < length(messages) && time() < sent_time + 1) # 1s timeout
+    while bytes_recv > 0 || (acks_received < length(messages) && time() < sent_time + 2.5) # 1s timeout
         bytes_recv, data = Aeron.poll(sub)
         total_bytes_recv += total_bytes_recv
         if !isnothing(data)
