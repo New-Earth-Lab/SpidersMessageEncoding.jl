@@ -44,7 +44,7 @@ function main(ARGS)
     stream = parsed_args["stream"]
 
     ctx = AeronContext(; dir)
-    conf = AeronConfig(; uri, stream)
+    pub_conf = AeronConfig(; uri, stream)
 
     errorcode = 0
     event_flags = parsed_args["event"]
@@ -65,8 +65,10 @@ function main(ARGS)
             end
         end
         kwargs = Iterators.flatten(kwargs_nest)
+        # We listen on the status channel for the response
+        sub_conf = AeronConfig(; uri, stream=stream+1)
         # Send command messages
-        sendevents(ctx, conf; NamedTuple(kwargs)...)
+        sendevents(ctx, pub_conf, sub_conf; NamedTuple(kwargs)...)
     end
     bufs = []
     for array_flag in array_flags
@@ -74,7 +76,7 @@ function main(ARGS)
             data = FITS(array_fname, "r") do hdus
                 read(hdus[1])
             end
-            sendarray(ctx, conf, data; description="")
+            sendarray(ctx, pub_conf, data; description="")
         end
     end
     if isempty(array_flags) && isempty(event_flags)
@@ -92,35 +94,41 @@ end
 
 """
     sendevents([Aeron.Context]; uri, stream, key_1=value_1, key_2=value_2...)
-    sendevents([Aeron.Context], conf::Aeron.Config; key_1=value_1, key_2=value_2...)
+    sendevents([Aeron.Context], pub_conf::Aeron.Config, sub_conf; key_1=value_1, key_2=value_2...)
 
 Convenience function to send a series of EventMessage in a single message
 to a provided aeron stream.
 
+Temporarily subscribe to the same status endpoint and wait for a response.
+
 You can pass an `Aeron.Context` if you have already created one, or else a new context
 will be opened internally. 
-You can pass an `Aeron.Config` object if you have it, otherwise you can pass the 
+You can pass a pair `Aeron.Config` objecs if you have it, otherwise you can pass the 
 `uri` and `stream` parameters.
+
+The status endpoint, if not provided, is assumed to also be at `uri`  and at `stream`+1.
 
 Example:
 ```julia
-sendevents(uri="aeron:ipc", stream=1001, event=:Start)
+sendevents(uri="aeron:ipc", stream=1001, Start=nothing)
+# publishes Start event to 1001 and listens for response on stats channel 1002.
 ```
 """
 sendevents(;uri, stream, kwargs...) = sendevents(AeronConfig(;uri,stream); kwargs...)
-sendevents(ctx::AeronContext; uri, stream, kwargs...) = sendevents(ctx, AeronConfig(;uri,stream); kwargs...)
+sendevents(ctx::AeronContext; uri, stream, kwargs...) = sendevents(ctx, AeronConfig(;uri,stream), AeronConfig(;uri,stream=stream+1); kwargs...)
 function sendevents(conf::AeronConfig; kwargs...)
     AeronContext() do ctx
         sendevents(ctx, conf; kwargs...)
     end
 end
-function sendevents(ctx::AeronContext, conf::AeronConfig; kwargs...)
-    Aeron.publisher(ctx, conf) do pub
-        sendevents(pub; kwargs...)
+function sendevents(ctx::AeronContext, pub_conf::AeronConfig, sub_conf::AeronConfig; kwargs...)
+    Aeron.publisher(ctx, pub_conf) do pub
+        Aeron.subscriber(ctx, sub_conf) do sub
+            sendevents(pub, sub; kwargs...)
+        end
     end
 end
-function sendevents(pub::Aeron.AeronPublication; kwargs...)
-    errorcode=0
+function sendevents(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscription; kwargs...)
 
     # All messages are sent with the same correlation number as a single Aeron message (could be multiple fragments)
     corr_num = rand(Int64)
@@ -177,12 +185,68 @@ function sendevents(pub::Aeron.AeronPublication; kwargs...)
     end
 
     all_messages_concat = reduce(vcat, messages)
+
+    sent_time = time()
     status = put!(pub, all_messages_concat)
     if status != :success
         @warn "message not published" status
-        errorcode += 1
+        return 1
     end
-    return errorcode
+
+    # loop through and dump any pending status messages
+    bytes_recv = 0
+    total_bytes_recv = 0
+    acks_received = 0
+    while bytes_recv > 0 || (acks_received < length(messages) && time() < sent_time + 1) # 1s timeout
+        bytes_recv, data = Aeron.poll(sub)
+        total_bytes_recv += total_bytes_recv
+        if !isnothing(data)
+            msg = SpidersMessageEncoding.sbedecode(data.buffer)
+            if msg.header.correlationId != corr_num
+                continue
+            end
+
+            # We can have multiple event messages concatenated together.
+            # In this case, we apply each sequentually in one go. 
+            # This allows changing multiple parameters "atomically" between
+            # loop updates.
+            last_ind = 0
+            while last_ind < length(data.buffer) # TODO: don't fail if there are a few bytes left over
+                data_span = @view data.buffer[last_ind+1:end]
+                event = EventMessage(data_span, initialize=false)
+                resp = getargument(event)
+                if resp isa TensorMessage
+                    resp = string(arraydata(resp))
+                    if length(resp) > 60
+                        resp = resp[1:37] * "..."
+                    end
+                end
+                if isnothing(resp)
+                    resp = ""
+                else
+                    resp = string(" = ", resp)
+                end
+                println("ACK: ", event.name, resp)
+                last_ind += sizeof(event)
+                acks_received += 1
+            end
+        end
+        sleep(0.001)
+    end
+    if acks_received == 0
+        if total_bytes_recv == 0
+            @error "Events were received, but no response was returned (status channel was silent)"
+            return
+        end
+        @error "Events were received, but no response was returned"
+        return
+    end
+    if acks_received < length(messages) 
+        missed = length(messages) - acks_received
+        @error "no response to $missed events"
+        return
+    end
+
 end
 
 
