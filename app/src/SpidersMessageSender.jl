@@ -5,7 +5,7 @@ using SpidersMessageEncoding
 using Aeron
 using StaticStrings
 
-export sendcmds, sendarray, AeronConfig, AeronContext
+export sendevents, sendarray, AeronConfig, AeronContext
 
 
 function main(ARGS)
@@ -23,10 +23,10 @@ function main(ARGS)
         help = "aeron stream number to publish to"
         arg_type = Int
         required = true
-        "--cmd"
+        "--event"
         nargs = '+'
         action = "append_arg"
-        help = "one or more SPIDERS command message entry to send (--command cmd [argument] [payload fits file path])"
+        help = "one or more SPIDERS command message entry to send (--event key [=value Float | String | fits file path])"
         arg_type = String
         "--array"
         nargs = '+'
@@ -47,18 +47,26 @@ function main(ARGS)
     conf = AeronConfig(; uri, stream)
 
     errorcode = 0
-    command_flags = parsed_args["cmd"]
+    event_flags = parsed_args["event"]
     array_flags = parsed_args["array"]
-    if !isempty(command_flags)
-        kwargs_nest = map(command_flags) do command_entries
-            return map(command_entries) do argstr
-                key, value = split(argstr, "=")
-                return Symbol(key) => value
+    if !isempty(event_flags)
+        kwargs_nest = map(event_flags) do event_entries
+            return map(event_entries) do argstr
+                strs =  split(argstr, "=")
+                if length(strs) == 2
+                    key, value = strs
+                    return Symbol(key) => value
+                elseif length(strs) == 1
+                    key = strs[1]
+                    return Symbol(key) => nothing
+                else
+                    error("multiple = encountered in single argument")
+                end
             end
         end
         kwargs = Iterators.flatten(kwargs_nest)
         # Send command messages
-        sendcmds(ctx, conf; NamedTuple(kwargs)...)
+        sendevents(ctx, conf; NamedTuple(kwargs)...)
     end
     bufs = []
     for array_flag in array_flags
@@ -69,7 +77,7 @@ function main(ARGS)
             sendarray(ctx, conf, data; description="")
         end
     end
-    if isempty(array_flags) && isempty(command_flags)
+    if isempty(array_flags) && isempty(event_flags)
         println(stderr, "no action provided")
         errorcode = 127
     end
@@ -83,10 +91,10 @@ end
 
 
 """
-    sendcmds([Aeron.Context]; uri, stream, key_1=value_1, key_2=value_2...)
-    sendcmds([Aeron.Context], conf::Aeron.Config; key_1=value_1, key_2=value_2...)
+    sendevents([Aeron.Context]; uri, stream, key_1=value_1, key_2=value_2...)
+    sendevents([Aeron.Context], conf::Aeron.Config; key_1=value_1, key_2=value_2...)
 
-    Convenience function to send a series of CommandMessage followed by a CommitMessage
+Convenience function to send a series of EventMessage in a single message
 to a provided aeron stream.
 
 You can pass an `Aeron.Context` if you have already created one, or else a new context
@@ -96,32 +104,32 @@ You can pass an `Aeron.Config` object if you have it, otherwise you can pass the
 
 Example:
 ```julia
-sendcmds(uri="aeron:ipc", stream=1001, event=:Start)
+sendevents(uri="aeron:ipc", stream=1001, event=:Start)
 ```
 """
-sendcmds(;uri, stream, kwargs...) = sendcmds(AeronConfig(;uri,stream); kwargs...)
-sendcmds(ctx::AeronContext; uri, stream, kwargs...) = sendcmds(ctx, AeronConfig(;uri,stream); kwargs...)
-function sendcmds(conf::AeronConfig; kwargs...)
+sendevents(;uri, stream, kwargs...) = sendevents(AeronConfig(;uri,stream); kwargs...)
+sendevents(ctx::AeronContext; uri, stream, kwargs...) = sendevents(ctx, AeronConfig(;uri,stream); kwargs...)
+function sendevents(conf::AeronConfig; kwargs...)
     AeronContext() do ctx
-        sendcmds(ctx, conf; kwargs...)
+        sendevents(ctx, conf; kwargs...)
     end
 end
-function sendcmds(ctx::AeronContext, conf::AeronConfig; kwargs...)
+function sendevents(ctx::AeronContext, conf::AeronConfig; kwargs...)
     Aeron.publisher(ctx, conf) do pub
-        sendcmds(pub; kwargs...)
+        sendevents(pub; kwargs...)
     end
 end
-function sendcmds(pub::Aeron.AeronPublication; kwargs...)
+function sendevents(pub::Aeron.AeronPublication; kwargs...)
     errorcode=0
 
-    # All messages are sent with the same correlation number, followed by a commit message
+    # All messages are sent with the same correlation number as a single Aeron message (could be multiple fragments)
     corr_num = rand(Int64)
 
     # Prepare all messages first, and then send one after another without pause
-    # Note: nested map because users can do --cmd abc=10 def=10 or --cmd abc=10 --cmd def=10
+    # Note: nested map because users can do --event abc=10 def=10 or --event abc=10 --event def=10
     messages = map(collect(kwargs)) do (key, value)
         buf = zeros(UInt8, 100000)
-        cmd = CommandMessage(buf)
+        event = EventMessage(buf)
         # Handle an array valued argument or a path to a FITS file
         if (value isa AbstractString && isfile(String(value))) || 
            (value isa AbstractArray)
@@ -141,12 +149,12 @@ function sendcmds(pub::Aeron.AeronPublication; kwargs...)
                 @info "dropping trailing dimension of size 1"
             end
             arraydata!(msg, data)
-            cmd.header.TimestampNs           = 0 # TODO
-            cmd.header.correlationId         = corr_num
-            cmd.header.description           = "" # TODO. Need to be able to specify?
+            event.header.TimestampNs           = 0 # TODO
+            event.header.correlationId         = corr_num
+            event.header.description           = "" # TODO. Need to be able to specify?
             resize!(buf_inner, sizeof(msg))
-            if length(buf) < length(buf_inner) + sizeof(cmd) 
-                resize!(buf, length(buf_inner) + sizeof(cmd))
+            if length(buf) < length(buf_inner) + sizeof(event) 
+                resize!(buf, length(buf_inner) + sizeof(event))
             end
             value = msg
         elseif value isa AbstractString 
@@ -159,30 +167,20 @@ function sendcmds(pub::Aeron.AeronPublication; kwargs...)
         elseif value isa Symbol
             value = String(value)
         end
-        cmd.command = String(key)
-        cmd.header.TimestampNs           = 0 # TODO
-        cmd.header.correlationId         = corr_num
-        cmd.header.description           = "command"
-        setargument!(cmd, value)
-        resize!(buf, sizeof(cmd))
+        event.name = String(key)
+        event.header.TimestampNs           = 0 # TODO
+        event.header.correlationId         = corr_num
+        event.header.description           = "command"
+        setargument!(event, value)
+        resize!(buf, sizeof(event))
         return buf
     end
 
-    # Complete by sending a commit message after all messages
-    buf = zeros(UInt8, 512)
-    commit_msg = CommitMessage(buf)
-    commit_msg.header.TimestampNs           = 0 # TODO
-    commit_msg.header.correlationId         = corr_num
-    commit_msg.header.description           = "command line commit"
-    resize!(buf, sizeof(commit_msg))
-    push!(messages, buf)
-
-    for message in messages
-        status = put!(pub, message)
-        if status != :success
-            @warn "message not published" status
-            errorcode += 1
-        end
+    all_messages_concat = reduce(vcat, messages)
+    status = put!(pub, all_messages_concat)
+    if status != :success
+        @warn "message not published" status
+        errorcode += 1
     end
     return errorcode
 end
@@ -237,14 +235,6 @@ Example receiver:
  Aeron.subscriber(ctx, conf) do sub
         for frame in sub
             msg = SpidersMessageEncoding.sbedecode(frame.buffer)
-            if msg isa CommandMessage
-                println(msg.command, " = ", string(getargument(msg))[1:min(20,end)])
-            elseif msg isa CommitMessage
-                println("COMMIT")
-            elseif msg isa TensorMessage || msg isa ArrayMessage
-                println("tensor")
-                display(arraydata(msg))
-            end
         end
     end
 =#
