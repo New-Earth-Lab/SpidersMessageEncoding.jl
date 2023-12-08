@@ -343,7 +343,7 @@ function setargument!(cmd::EventMessage, value::SimpleBinaryEncoding.AbstractMes
     return value
 end
 function setargument!(cmd::EventMessage, value::ArrayMessage)
-    cmd.format = ValueFormatMessage
+    cmd.format = ValueFormatNothing
     resize!(cmd.value, sizeof(value))
     copy!(cmd.value, getfield(getfield(value, :tensor), :buffer))
     return value
