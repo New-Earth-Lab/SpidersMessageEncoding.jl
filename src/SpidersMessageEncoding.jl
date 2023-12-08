@@ -309,7 +309,7 @@ end
 # Fully dynamic
 function getargument(cmd::EventMessage)
     if cmd.format == ValueFormatNothing
-        return getargument(Float64, cmd)
+        return nothing
     elseif cmd.format == ValueFormatNumber
         return getargument(Float64, cmd)
     elseif cmd.format == ValueFormatString
@@ -343,7 +343,7 @@ function setargument!(cmd::EventMessage, value::SimpleBinaryEncoding.AbstractMes
     return value
 end
 function setargument!(cmd::EventMessage, value::ArrayMessage)
-    cmd.format = ValueFormatNothing
+    cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
     copy!(cmd.value, getfield(getfield(value, :tensor), :buffer))
     return value
@@ -357,7 +357,7 @@ function setargument!(cmd::EventMessage, value::AbstractArray{UInt8})
     return value
 end
 function setargument!(cmd::EventMessage, value::Nothing)
-    cmd.format = ValueFormatMessage
+    cmd.format = ValueFormatNothing
     resize!(cmd.value, 0)
     return value
 end

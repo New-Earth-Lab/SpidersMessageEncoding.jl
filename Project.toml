@@ -1,7 +1,7 @@
 name = "SpidersMessageEncoding"
 uuid = "25d647a0-ef7d-4da3-8ba8-11abaa3d526c"
 author = "William Thompson"
-version = "3.1.1"
+version = "3.1.2"
 
 [deps]
 SimpleBinaryEncoding = "165d4630-7e21-4626-b3c2-016fbf5108c4"
