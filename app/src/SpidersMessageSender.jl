@@ -5,7 +5,7 @@ using SpidersMessageEncoding
 using Aeron
 using StaticStrings
 
-export sendevents, sendarray, AeronConfig, AeronContext
+export sendevents, send_confirm_events, sendarray, AeronConfig, AeronContext
 
 
 function main(ARGS)
@@ -33,6 +33,9 @@ function main(ARGS)
         help = "one or more SPIDERS ArrayMessage entry to send (path to a FITS file)"
         arg_type = String
         action = "append_arg"
+        "--description"
+        arg_type = String
+        default = ""
     end
     parsed_args = parse_args(ARGS, s)
     if isnothing(parsed_args)
@@ -42,6 +45,7 @@ function main(ARGS)
     dir = parsed_args["dir"]
     uri = parsed_args["uri"]
     stream = parsed_args["stream"]
+    description = parsed_args["description"]
 
     ctx = AeronContext(; dir)
     pub_conf = AeronConfig(; uri, stream)
@@ -68,7 +72,7 @@ function main(ARGS)
         # We listen on the status channel for the response
         sub_conf = AeronConfig(; uri, stream=stream+1)
         # Send command messages
-        sendevents(ctx, pub_conf, sub_conf; NamedTuple(kwargs)...)
+        send_confirm_events(ctx, pub_conf, sub_conf; description, NamedTuple(kwargs)...)
     end
     bufs = []
     for array_flag in array_flags
@@ -76,7 +80,7 @@ function main(ARGS)
             data = FITS(array_fname, "r") do hdus
                 read(hdus[1])
             end
-            sendarray(ctx, pub_conf, data; description="")
+            sendarray(ctx, pub_conf, data; description)
         end
     end
     if isempty(array_flags) && isempty(event_flags)
@@ -114,90 +118,33 @@ sendevents(uri="aeron:ipc", stream=1001, Start=nothing)
 # publishes Start event to 1001 and listens for response on stats channel 1002.
 ```
 """
-sendevents(;uri, stream, kwargs...) = sendevents(AeronConfig(;uri,stream); kwargs...)
-sendevents(ctx::AeronContext; uri, stream, kwargs...) = sendevents(ctx, AeronConfig(;uri,stream), AeronConfig(;uri,stream=stream+1); kwargs...)
-function sendevents(conf::AeronConfig; kwargs...)
+send_confirm_events(;uri, stream, kwargs...) = AeronContext() do ctx
+    send_confirm_events(ctx, AeronConfig(;uri,stream),  AeronConfig(;uri,stream=stream+1); kwargs...)
+end
+send_confirm_events(ctx::AeronContext; uri, stream, kwargs...) = send_confirm_events(ctx, AeronConfig(;uri,stream), AeronConfig(;uri,stream=stream+1); kwargs...)
+function send_confirm_events(conf::AeronConfig; kwargs...)
     AeronContext() do ctx
-        sendevents(ctx, conf; kwargs...)
+        send_confirm_events(ctx, conf; kwargs...)
     end
 end
-function sendevents(ctx::AeronContext, pub_conf::AeronConfig, sub_conf::AeronConfig; kwargs...)
+function send_confirm_events(ctx::AeronContext, pub_conf::AeronConfig, sub_conf::AeronConfig; kwargs...)
     Aeron.publisher(ctx, pub_conf) do pub
         Aeron.subscriber(ctx, sub_conf) do sub
-            sendevents(pub, sub; kwargs...)
+            send_confirm_events(pub, sub; kwargs...)
         end
     end
 end
-function sendevents(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscription; kwargs...)
+function send_confirm_events(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscription; description="", kwargs...)
 
     # All messages are sent with the same correlation number as a single Aeron message (could be multiple fragments)
-    corr_num = rand(Int64)
-
-    # Prepare all messages first, and then send one after another without pause
-    # Note: nested map because users can do --event abc=10 def=10 or --event abc=10 --event def=10
-    messages = map(collect(kwargs)) do (key, value)
-        buf = zeros(UInt8, 100000)
-        event = EventMessage(buf)
-        # Handle an array valued argument or a path to a FITS file
-        if (value isa AbstractString && endswith(String(value), r"\.fits?(\.gz)?"i)) || 
-           (value isa AbstractArray)
-            if value isa AbstractString
-                data = FITS(value, "r") do hdus
-                    read(hdus[1])
-                end
-            else
-                data = value
-            end
-            buf_inner = zeros(UInt8, 512 + sizeof(data))
-            size(buf_inner)
-            msg = TensorMessage(buf_inner)
-            # FITS files are always at least 2d. If we get a single column, treat this as a vector.
-            if value isa String && ndims(data) == 2 && size(data, 2) == 1
-                data = dropdims(data, dims=2)
-                @info "dropping trailing dimension of size 1"
-            end
-            arraydata!(msg, data)
-            event.header.TimestampNs           = 0 # TODO
-            event.header.correlationId         = corr_num
-            event.header.description           = "" # TODO. Need to be able to specify?
-            resize!(buf_inner, sizeof(msg))
-            if length(buf) < length(buf_inner) + sizeof(event) 
-                resize!(buf, length(buf_inner) + sizeof(event))
-            end
-            value = msg
-        elseif value isa AbstractString 
-            flt = tryparse(Float64, value)
-            if isnothing(flt)
-                value = value
-            else
-                value = flt
-            end
-        elseif value isa Symbol
-            value = String(value)
-        end
-        event.name = String(key)
-        event.header.TimestampNs           = 0 # TODO
-        event.header.correlationId         = corr_num
-        event.header.description           = "command"
-        setargument!(event, value)
-        resize!(buf, sizeof(event))
-        return buf
-    end
-
-    all_messages_concat = reduce(vcat, messages)
-
+    corr_num, length_messages = sendevents(pub; description, kwargs...)
     sent_time = time()
-    status = put!(pub, all_messages_concat)
-    if status != :success
-        @warn "message not published" status
-        return 1
-    end
 
     # loop through and dump any pending status messages
     bytes_recv = 0
     total_bytes_recv = 0
     acks_received = 0
-    while bytes_recv > 0 || (acks_received < length(messages) && time() < sent_time + 2.5) # 1s timeout
+    while bytes_recv > 0 || (acks_received < length_messages && time() < sent_time + 2.5) # 1s timeout
         bytes_recv, data = Aeron.poll(sub)
         total_bytes_recv += total_bytes_recv
         if !isnothing(data)
@@ -241,13 +188,97 @@ function sendevents(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscription; k
         @error "Events were received, but no response was returned"
         return
     end
-    if acks_received < length(messages) 
-        missed = length(messages) - acks_received
+    if acks_received < length_messages 
+        missed = length_messages - acks_received
         @error "no response to $missed events"
         return
     end
 
 end
+
+
+sendevents(;uri, stream, kwargs...) = AeronContext() do ctx
+    sendevents(ctx, AeronConfig(;uri,stream),; kwargs...)
+end
+sendevents(ctx::AeronContext; uri, stream, kwargs...) = sendevents(ctx, AeronConfig(;uri,stream); kwargs...)
+function sendevents(conf::AeronConfig; kwargs...)
+    AeronContext() do ctx
+        sendevents(ctx, conf; kwargs...)
+    end
+end
+function sendevents(ctx::AeronContext, pub_conf::AeronConfig; kwargs...)
+        Aeron.publisher(ctx, pub_conf) do pub
+            sendevents(pub; kwargs...)
+        end
+end
+function sendevents(pub::Aeron.AeronPublication; description="", kwargs...)
+
+    # All messages are sent with the same correlation number as a single Aeron message (could be multiple fragments)
+    corr_num = rand(Int64)
+
+    # Prepare all messages first, and then send one after another without pause
+    # Note: nested map because users can do --event abc=10 def=10 or --event abc=10 --event def=10
+    messages = map(collect(kwargs)) do (key, value)
+        buf = zeros(UInt8, 100000)
+        event = EventMessage(buf)
+        # Handle an array valued argument or a path to a FITS file
+        if (value isa AbstractString && endswith(String(value), r"\.fits?(\.gz)?"i)) || 
+           (value isa AbstractArray)
+            if value isa AbstractString
+                data = FITS(value, "r") do hdus
+                    read(hdus[1])
+                end
+            else
+                data = value
+            end
+            buf_inner = zeros(UInt8, 512 + sizeof(data))
+            size(buf_inner)
+            msg = TensorMessage(buf_inner)
+            # FITS files are always at least 2d. If we get a single column, treat this as a vector.
+            if value isa String && ndims(data) == 2 && size(data, 2) == 1
+                data = dropdims(data, dims=2)
+                @info "dropping trailing dimension of size 1"
+            end
+            arraydata!(msg, data)
+            event.header.TimestampNs           = round(UInt64, time()*1e9)
+            event.header.correlationId         = corr_num
+            event.header.description           = description
+            resize!(buf_inner, sizeof(msg))
+            if length(buf) < length(buf_inner) + sizeof(event) 
+                resize!(buf, length(buf_inner) + sizeof(event))
+            end
+            value = msg
+        elseif value isa AbstractString 
+            flt = tryparse(Float64, value)
+            if isnothing(flt)
+                value = value
+            else
+                value = flt
+            end
+        elseif value isa Symbol
+            value = String(value)
+        end
+        event.name = String(key)
+        event.header.TimestampNs           = round(UInt64, time()*1e9)
+        event.header.correlationId         = corr_num
+        event.header.description           = description
+        setargument!(event, value)
+        resize!(buf, sizeof(event))
+        return buf
+    end
+
+    all_messages_concat = reduce(vcat, messages)
+
+    status = put!(pub, all_messages_concat)
+    if status != :success
+        @warn "message not published" status
+        corr_num, 0
+    end
+    return corr_num, length(messages)
+
+
+end
+
 
 
 sendarray(data; uri, stream, description="") = sendarray(AeronConfig(;uri,stream), data; description)
@@ -273,14 +304,8 @@ function sendarray(pub::Aeron.AeronPublication, data; description="")
         @info "dropping trailing dimension of size 1"
     end
     arraydata!(msg, data)
-    # TODO:
     msg.header.description = description
-    # cmd.timestamp = 
-    # cmd.format = 
-    # format = 0 implies there is another payload
-    # cmd.argument = 
-    # cmd.payload
-    # display(cmd)
+    cmd.header.TimestampNs = round(UInt64, time()*1e9)
     resize!(buf, sizeof(msg))
 
     status = put!(pub, buf)
@@ -290,6 +315,8 @@ function sendarray(pub::Aeron.AeronPublication, data; description="")
     end
     return 0
 end
+
+
 
 end
 
