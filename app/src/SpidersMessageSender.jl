@@ -138,6 +138,9 @@ function send_confirm_events(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscr
 
     # All messages are sent with the same correlation number as a single Aeron message (could be multiple fragments)
     corr_num, length_messages = sendevents(pub; description, kwargs...)
+    if length_messages == 0
+        return
+    end
     sent_time = time()
 
     # loop through and dump any pending status messages
