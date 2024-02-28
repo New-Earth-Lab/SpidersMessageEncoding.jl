@@ -188,7 +188,7 @@ This function will be type-stable and allocation-free if used on
 an `ArrayMessage{ElType,Dim}` but not on a generic `TensorMessage`.
 """
 function arraydata(img::TensorMessage)
-    data = img.values
+    data = @view img.values.data[1:length(img.values)]
     ElType = eltype(img)
     @boundscheck if mod(length(data), sizeof(ElType)) != 0
         error("length of data is not a multiple of the element type")
@@ -204,7 +204,7 @@ function arraydata(img::TensorMessage)
     return reshp
 end
 function arraydata(img::ArrayMessage{T,N}) where {T,N}
-    data = img.values
+    data = @view img.values.data[1:length(img.values)]
     @boundscheck if mod(length(data), sizeof(T)) != 0
         error("length of data is not a multiple of the element type")
     end
@@ -219,16 +219,16 @@ function arraydata(img::ArrayMessage{T,N}) where {T,N}
     return reshp
 end
 
-function arraydata!(img::TensorMessage, pixdat::Array{ElType}) where {ElType}
+function arraydata!(img::TensorMessage, pixdat::AbstractArray{ElType}) where {ElType}
     return _arraydata!(ElType, img, pixdat)
 end
 # For ArrayMessage, the user has already specified the element type in the message type parameter
-function arraydata!(img::ArrayMessage{ElType}, pixdat::Array) where {ElType}
+function arraydata!(img::ArrayMessage{ElType}, pixdat::AbstractArray) where {ElType}
     return _arraydata!(ElType, img, pixdat)
 end
 function _arraydata!(t::Type{ElType}, img::ArbArrayMessage, pixdat) where {ElType}
     img.format = pixel_format_from_dtype(ElType)
-    resize!(img.values, prod(size(pixdat)) * sizeof(ElType))
+    resize!(img.values, length(pixdat)*sizeof(ElType))
     sz1 = sz2 = sz3 = sz4 = 0
     if ndims(pixdat) >= 1
         sz1 = size(pixdat, 1)
