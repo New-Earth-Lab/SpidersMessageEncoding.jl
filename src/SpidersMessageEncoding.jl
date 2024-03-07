@@ -275,35 +275,33 @@ function getargument(::Type{Float64}, cmd::EventMessage)
     @boundscheck if length(cmd.value) != sizeof(Float64)
         error("length of data is not correct for the element type")
     end
-    return @inbounds reinterpret(Float64, cmd.value,)[]
+    return @inbounds reinterpret(Float64, cmd.value.data,)[]
 end
 function getargument(::Type{String}, cmd::EventMessage)
     if cmd.format != ValueFormatString
         error("Requested format does not match message payload format.")
     end
-    BytesType = NTuple{Int(length(cmd.value)),UInt8}
-    return NullTermString(parent(cmd.value))
+    return NullTermString(cmd.value.data)
 end
 function getargument(::Type{Symbol}, cmd::EventMessage)
     if cmd.format != ValueFormatString
         error("Requested format does not match message payload format.")
     end
-    BytesType = NTuple{Int(length(cmd.value)),UInt8}
-    return Symbol(NullTermString(parent(cmd.value)))
+    return Symbol(NullTermString(cmd.value.data))
 end
 # We know what type of message payload:
 function getargument(T::Type{<:SimpleBinaryEncoding.AbstractMessage}, cmd::EventMessage)
     if cmd.format != ValueFormatMessage
         error("Requested format does not match message payload format.")
     end
-    return T(cmd.value)
+    return T(cmd.value.data)
 end
 # We want to determine the type of the message payload dynamically:
 function getargument(::Type{SimpleBinaryEncoding.AbstractMessage}, cmd::EventMessage)
     if cmd.format != ValueFormatMessage
         error("Requested format does not match message payload format.")
     end
-    return SpidersMessageEncoding.sbedecode(cmd.value)
+    return SpidersMessageEncoding.sbedecode(cmd.value.data)
 end
 
 # Fully dynamic
@@ -325,13 +323,13 @@ end
 function setargument!(cmd::EventMessage,value::Number)
     cmd.format = ValueFormatNumber
     resize!(cmd.value, 8)
-    return reinterpret(Float64, cmd.value,)[] = value
+    return reinterpret(Float64, cmd.value.data)[] = value
 end
 function setargument!(cmd::EventMessage, value::AbstractString)
     cmd.format = ValueFormatString
     resize!(cmd.value, sizeof(value))
     for i in 1:sizeof(value)
-        cmd.value[i] = codeunit(value,i)
+        cmd.value.data[i] = codeunit(value,i)
     end
     return value
 end
@@ -339,13 +337,13 @@ end
 function setargument!(cmd::EventMessage, value::SimpleBinaryEncoding.AbstractMessage)
     cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
-    copy!(cmd.value, getfield(value, :buffer))
+    copy!(cmd.value.data, getfield(value, :buffer))
     return value
 end
 function setargument!(cmd::EventMessage, value::ArrayMessage)
     cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
-    copy!(cmd.value, getfield(getfield(value, :tensor), :buffer))
+    copy!(cmd.value.data, getfield(getfield(value, :tensor), :buffer))
     return value
 end
 
@@ -353,7 +351,7 @@ end
 function setargument!(cmd::EventMessage, value::AbstractArray{UInt8})
     cmd.format = ValueFormatMessage
     resize!(cmd.value, sizeof(value))
-    copy!(cmd.value, value)
+    copy!(cmd.value.data, value)
     return value
 end
 function setargument!(cmd::EventMessage, value::Nothing)

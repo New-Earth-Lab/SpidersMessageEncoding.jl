@@ -299,7 +299,7 @@ end
 
 function sendarray(pub::Aeron.AeronPublication, data; description="")
 
-    buf = zeros(UInt8, 512 + sizeof(data))
+    buf = zeros(UInt8, 3048 + sizeof(data))
     msg = TensorMessage(buf)
     # FITS files are always at least 2d. If we get a single column, treat this as a vector.
     if ndims(data) == 2 && size(data, 2) == 1
@@ -308,7 +308,7 @@ function sendarray(pub::Aeron.AeronPublication, data; description="")
     end
     arraydata!(msg, data)
     msg.header.description = description
-    cmd.header.TimestampNs = round(UInt64, time()*1e9)
+    msg.header.TimestampNs = round(UInt64, time()*1e9)
     resize!(buf, sizeof(msg))
 
     status = put!(pub, buf)
