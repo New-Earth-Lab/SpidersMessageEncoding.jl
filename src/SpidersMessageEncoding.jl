@@ -42,14 +42,18 @@ buffertype(::TensorMessage{T}) where {T} = T
 # This is to allow easier type-stable access to the underlying data for the user.
 struct ArrayMessage{T<:Any,N,TensorType} <: SimpleBinaryEncoding.AbstractMessage
     tensor::TensorMessage{TensorType}
-    function ArrayMessage{T,N}(args...; kwargs...) where {T,N}
-        tensor = TensorMessage(args...; kwargs...)
-        tensor.format = pixel_format_from_dtype(T) # type-unstable but should const-prop
+    function ArrayMessage{T,N}(args...; initialize=true, kwargs...) where {T,N}
+        tensor = TensorMessage(args...; initialize, kwargs...)
+        if initialize
+            tensor.format = pixel_format_from_dtype(T) # type-unstable but should const-prop
+        end
         return new{T,N,buffertype(tensor)}(tensor)
     end
-    function ArrayMessage{T,N,BT}(args...; kwargs...) where {T,N,BT}
-        tensor = TensorMessage{BT}(args...; kwargs...)
-        tensor.format = pixel_format_from_dtype(T) # type-unstable but should const-prop
+    function ArrayMessage{T,N,BT}(args...; initialize=true, kwargs...) where {T,N,BT}
+        tensor = TensorMessage{BT}(args...; initialize, kwargs...)
+        if initialize
+            tensor.format = pixel_format_from_dtype(T) # type-unstable but should const-prop
+        end
         return new{T,N,BT}(tensor)
     end
 end
@@ -335,15 +339,13 @@ function setargument!(cmd::EventMessage, value::AbstractString)
 end
 
 function setargument!(cmd::EventMessage, value::SimpleBinaryEncoding.AbstractMessage)
+    setargument!(cmd, getfield(value, :buffer))
     cmd.format = ValueFormatMessage
-    resize!(cmd.value, sizeof(value))
-    copy!(cmd.value.data, getfield(value, :buffer))
     return value
 end
 function setargument!(cmd::EventMessage, value::ArrayMessage)
+    setargument!(cmd, getfield(getfield(value, :tensor), :buffer))
     cmd.format = ValueFormatMessage
-    resize!(cmd.value, sizeof(value))
-    copy!(cmd.value.data, getfield(getfield(value, :tensor), :buffer))
     return value
 end
 

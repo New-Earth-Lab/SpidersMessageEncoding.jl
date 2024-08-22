@@ -74,7 +74,6 @@ function main(ARGS)
         # Send command messages
         send_confirm_events(ctx, pub_conf, sub_conf; description, NamedTuple(kwargs)...)
     end
-    bufs = []
     for array_flag in array_flags
         for array_fname in array_flag
             data = FITS(array_fname, "r") do hdus
@@ -139,7 +138,7 @@ function send_confirm_events(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscr
     # All messages are sent with the same correlation number as a single Aeron message (could be multiple fragments)
     corr_num, length_messages = sendevents(pub; description, kwargs...)
     if length_messages == 0
-        return
+        return :notconnected
     end
     sent_time = time()
 
@@ -185,18 +184,18 @@ function send_confirm_events(pub::Aeron.AeronPublication, sub::Aeron.AeronSubscr
     end
     if acks_received == 0
         if total_bytes_recv == 0
-            @error "Events were received, but no response was returned (status channel was silent)"
-            return
+            @error "Events were sent, but no response was returned (status channel was silent)"
+            return :noresponse
         end
-        @error "Events were received, but no response was returned"
-        return
+        @error "Events were sent, but no response was returned (no matching correlationId)"
+        return :noresponse
     end
     if acks_received < length_messages 
         missed = length_messages - acks_received
         @error "no response to $missed events"
-        return
+        return :partial
     end
-
+    return :success
 end
 
 
@@ -228,10 +227,12 @@ function sendevents(pub::Aeron.AeronPublication; description="", kwargs...)
         if (value isa AbstractString && endswith(String(value), r"\.fits?(\.gz)?"i)) || 
            (value isa AbstractArray)
             if value isa AbstractString
+                @info "Loading FITS file"
                 data = FITS(value, "r") do hdus
                     read(hdus[1])
                 end
             else
+                @info "Using provided array"
                 data = value
             end
             buf_inner = zeros(UInt8, 512 + sizeof(data))
@@ -298,7 +299,7 @@ function sendarray(ctx::AeronContext, conf::AeronConfig, data;description="")
 end
 
 function sendarray(pub::Aeron.AeronPublication, data; description="")
-
+    corr_num = rand(Int64)
     buf = zeros(UInt8, 3048 + sizeof(data))
     msg = TensorMessage(buf)
     # FITS files are always at least 2d. If we get a single column, treat this as a vector.
@@ -308,15 +309,16 @@ function sendarray(pub::Aeron.AeronPublication, data; description="")
     end
     arraydata!(msg, data)
     msg.header.description = description
+    msg.header.correlationId = corr_num
     msg.header.TimestampNs = round(UInt64, time()*1e9)
     resize!(buf, sizeof(msg))
 
     status = put!(pub, buf)
     if status != :success
         @warn "Message not published. Stopping." status
-        return 1
+        return corr_num, 0
     end
-    return 0
+    return corr_num, 1
 end
 
 
