@@ -275,7 +275,7 @@ function sendevents(pub::Aeron.AeronPublication; description="", kwargs...)
 
     status = put!(pub, all_messages_concat)
     if status != :success
-        @warn "message not published" status
+        @warn "message not published" status pub
         corr_num, 0
     end
     return corr_num, length(messages)
