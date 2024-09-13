@@ -1,5 +1,6 @@
 name = "SpidersMessageSender"
 uuid = "1be38944-6f3b-4e31-8ac7-3d1d5d2dec34"
+version = "0.1.0"
 
 [deps]
 Aeron = "42ac8a32-990f-4d8c-aece-52d731103226"
